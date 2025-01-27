@@ -1,0 +1,75 @@
+# =============================================================================
+# =============================================================================
+# Grid2Time control file statements
+# =============================================================================
+#
+#
+
+# input, output filename root
+# (GTFILES <input file root> <output file root> wave_type (P, S))
+#
+# 2D
+GTFILES  /home/emanuele/LOKI-DAS/NLL_loki_requirements/TEST_NLL/Traveltimes/layer  /home/emanuele/LOKI-DAS/NLL_loki_requirements/TEST_NLL/Traveltimes/layer S 
+ 
+
+# time grid modes
+# (GTMODE grid_mode, angle_mode)
+#    (char[])   grid_mode (GRID3D, GRID2D)
+#    (char[])   angle_mode (ANGLES_YES, ANGLES_NO)
+#
+#GTMODE GRID3D ANGLES_YES
+#GTMODE GRID2D ANGLES_YES
+GTMODE GRID3D ANGLES_NO
+
+# source description (multiple sources can be specified)
+# (GTSRCE  label  x_srce  y_srce   z_srce   elev)
+#
+#    (char[])   label
+#
+#    (char[])   loc type (XYZ, LATLON (+/-dec deg), LATLONDM (deg, dec min))
+#  XYZ---------------      LATLON/LATLONDM--------
+#  x_srce : km pos E   or  lat   : pos N
+#  y_srce : km pos N   or  long  : pos E
+#  z_srce : km pos DN  or  depth : pos DN
+#
+#    elev : km pos UP
+#
+
+GTSRCE HM01 LATLON 51.67223 7.73717 0.0 0. 
+GTSRCE HM02 LATLON 51.65656 7.74178 0.0 0.
+GTSRCE HM03 LATLON 51.66499 7.74745 0.0 0.
+GTSRCE HM04 LATLON 51.66097 7.73808 0.0 0.
+GTSRCE HM05 LATLON 51.65890 7.74283 0.0 0.
+GTSRCE HM06 LATLON 51.65965 7.75079 0.0 0.
+GTSRCE HM07 LATLON 51.65704 7.74071 0.0 0.
+GTSRCE HM08 LATLON 51.65624 7.74555 0.0 0.
+GTSRCE HM09 LATLON 51.65616 7.75536 0.0 0.
+GTSRCE HM10 LATLON 51.65312 7.73344 0.0 0.
+GTSRCE HM11 LATLON 51.65334 7.74765 0.0 0.
+GTSRCE HM12 LATLON 51.64850 7.75228 0.0 0.
+GTSRCE HM13 LATLON 51.64538 7.73056 0.0 0.
+GTSRCE HM14 LATLON 51.64781 7.74162 0.0 0.
+GTSRCE HM20 LATLON 51.65312 7.73344 0.0 0.
+
+
+
+# Podvin & Lecomte FD params
+# Podvin and Lemcomte, 1991, GJI, 105, 271-284.
+# (PLFD  hs_eps_init  message_flag)
+#    (float) hs_eps_init : fraction (typically 1.0E-3) defining the toler-
+#                          ated model inhomogeneity for exact initialization.
+#                          A tolerance larger than 0.01 will potentially
+#                          create errors larger than those involved by the
+#                          F.D. scheme without any exact initialization.
+#    (int)  message_flag : Message flag (0:silent,1:few messages,2:verbose)
+#                          A negative value inhibits "clever"
+#                          initialization.
+#
+GT_PLFD  1.0e-3  0
+
+#
+#
+# =============================================================================
+# END of Grid2Time control file statements
+# =============================================================================
+# =============================================================================
