@@ -159,6 +159,8 @@ class Loki:
 
             print(tp_modse)
 
+            print('git is working')
+
 
             #this must be changed because it doesn't handle correctly 2D traveltimes, instead of 3D 
 
