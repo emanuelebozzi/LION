@@ -124,4 +124,4 @@ setup(
 # option to disable the standard set entirely.)
 # There are several other commands available in the manifest template
 # mini-language; see section Creating a source distribution:
-# the sdist command.
+# the sdist command
