@@ -20,61 +20,106 @@ import loki.latlon2cart as ll2c
 
 class Traveltimes:
 
-    def __init__(self, db_path, hdr_filename):
+    def __init__(self, db_path, hdr_filename, geometry_filename):
         if not os.path.isdir(db_path):
             print('Error: data or database path do not exist')
             sys.exit()
         self.db_path = db_path
         if not os.path.isfile(db_path+'/'+hdr_filename):
             print('Error: header file does not exist')
+            print('this is the path:', db_path+'/'+hdr_filename)
             sys.exit()
+        self.refsta = None
         self.hdr_filename = hdr_filename
         self.load_header()
+        self.geometry_filename = geometry_filename
+        self.load_station_info()
+
+#modify to read only two components (ny out, modify header)
 
     def load_header(self):
 
+        #this method loads information on the big 2D traveltime grid and 3D location grid 
+   
         f = open(os.path.join(self.db_path, self.hdr_filename))
-        lines = f.readlines()
-        f.close()
-        self.nx, self.ny, self.nz = [ int(x)   for x in lines[0].split()]
-        self.x0, self.y0, self.z0 = [ float(x) for x in lines[1].split()]
-        self.dx, self.dy, self.dz = [ float(x) for x in lines[2].split()]
-        self.lat0, self.lon0 = [ float(x) for x in lines[3].split()]
-        self.x = self.x0+(num.arange(0,self.nx)*self.dx)
-        self.y = self.y0+(num.arange(0,self.ny)*self.dy)
-        self.z = self.z0+(num.arange(0,self.nz)*self.dz)
-        self.nxyz=self.nx*self.ny*self.nz
-        db_stalist=[]
-        if len(lines[4].split())>1:
-            stations_coordinates={}
+        lines = f.readlines()  #read header info 
+        #here info on the big traveltime 2D grid 
+        self.nx, self.nz = [ int(x)   for x in lines[0].split()]  #number of points on the grid
+        self.x0, self.z0 = [ float(x) for x in lines[1].split()]  #starting point of the grid 
+        self.dx, self.dz = [ float(x) for x in lines[2].split()]  #grid spacing
+        self.lat0, self.lon0 = [ float(x) for x in lines[3].split()] #lat lon starting point 
+        self.nttx, self.nttz=[ int(x)   for x in lines[4].split()] #traveltime points along distance and depth 
+        self.dttx, self.dttz=[ float(x)   for x in lines[5].split()] #spacing in travetimes 
+        self.dtt=float(lines[6])
+        toks = lines[7].split()
+        if len(toks) > 1:
+            self.ref_station_coordinates = [eval(toks[1]) - self.lon0, eval(toks[2]) - self.lat0, eval(toks[3])]
         else:
-            stations_coordinates=None
+            self.ref_station_coordinates = None  
+        self.refsta = toks[0] if toks else None  
 
-        for line in lines[4:]:
+        #here info on the location 3D grid 
+        self.x = self.x0+(num.arange(self.dx,(self.nx*self.dx)/num.sqrt(2)))  #define the grid search based on the 2D traveltime grid
+        self.y = self.x0+(num.arange(self.dx,(self.nx*self.dx)/num.sqrt(2)))  #define the grid search based on the 2D traveltime grid (cateto della diagonale)
+        self.z = self.z0+(num.arange(0,self.nz)*self.dz)  
+        self.nyz=self.nx*self.nx*self.nz 
+        self.delta_das = 0.01  #
+
+
+    def load_station_info(self): 
+        
+        #read information on the location grid and the stations 
+        db_stalist=[]
+        stations_coordinates={}
+        f = open(os.path.join(self.db_path, self.geometry_filename))
+        lines = f.readlines()  #read header info
+        id_end_das = lines[0]
+        for line in lines[1:]:        
             toks=line.split()
-            db_stalist.append(toks[0])
+            db_stalist.append(toks[0])   #list of station id
             if len(toks)>1:
-                stations_coordinates[toks[0]]=[eval(toks[1]), eval(toks[2]), eval(toks[3])]
+                stations_coordinates[toks[0]]=[eval(toks[1])-self.lon0, eval(toks[2])-self.lat0, eval(toks[3])] #station coordinates converted to relative based on the location of the reference point at the beginning of the big 2D traveltime table 
+        
+        db_stalist = [int(x) for x in db_stalist]
+        id_end_das = int(id_end_das)
 
+        # Ensure the slicing works
+        self.id_das_stations = db_stalist[1:id_end_das]
+
+        self.id_das_stations = db_stalist[1:id_end_das]
+        self.id_ign_stations = db_stalist[id_end_das:len(db_stalist)]
         self.db_stations=set(db_stalist)
         self.stations_coordinates=stations_coordinates
 
+
+
     def load_traveltimes(self, phase, label='layer', precision='single'):
+
+        '''
+        This function now reads the big 2d traveltime table, not a traveltime table for each station
+        
+        '''
+
         t={}
-        for sta in self.db_stations:
-            try:
-               fn = os.path.join(self.db_path, '%(label)s.%(phase)s.%(station)s.time.buf' %{"label":label,"phase":phase, "station":sta} )
-            except:
-               print('Error: reading file for station' + sta)
-               sys.exit()
-            if (precision=='single'):
-                t[sta]= num.fromfile(fn, dtype=num.float32)
-            elif (precision=='double'):
-                t[sta]= num.fromfile(fn, dtype=num.float64)
-            else:
-                print('Error: precision must be set to "single" or "double"!!!')
-                sys.exit()
+        sta = self.refsta
+        fn = os.path.join(self.db_path, '%(label)s.%(phase)s.%(station)s.time.buf' %{"label":label,"phase":phase, "station":sta} )
+        if (precision=='single'):
+            t[sta]= num.fromfile(fn, dtype=num.float32)
+        elif (precision=='double'):
+            t[sta]= num.fromfile(fn, dtype=num.float64)
+        elif (precision=='single_int'):
+            t[sta]= num.fromfile(fn, dtype=num.int16)
+        elif (precision=='double_int'):
+            t[sta]= num.fromfile(fn, dtype=num.int32)
+        else:
+            print('Error: precision must be set to "single_int" or "double_int"!!!')
+            sys.exit()
         return t
+
+######### updated up to here #########
+
+
+#modify 
 
     def ttdb_reduce(self,tt,l_lim,u_lim,zlim=[]):
         latref=self.lat0; lonref=self.lon0; eleref=0.
@@ -133,6 +178,8 @@ class Traveltimes:
         self.nxyz=self.nx*self.ny*self.nz
 
         return t_interp
+    
+#modify 
 
     def save_ttdb(self,tt,phase,label):
 
