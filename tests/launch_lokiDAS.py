@@ -7,8 +7,8 @@ To call LOKI you need this file and make it executable (or call python)
 
 from loki.loki import Loki
 
-db_path = './Test_1/Traveltimes'
-data_path = './Test_1/Data'
+db_path = '/home/emanuele/data/emanuele/loki-das/Traveltimes'
+data_path = '/home/emanuele/data/emanuele/loki-das/Data'
 output_path = './Test_1/output'
 hdr_filename = 'header_long.hdr'
 geometry_filename = 'station_das_ign.tmp'
