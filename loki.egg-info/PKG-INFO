@@ -12,9 +12,6 @@ Classifier: Intended Audience :: Science/Research
 Requires-Python: >=3.6
 Description-Content-Type: text/markdown
 License-File: LICENSE
-Requires-Dist: numpy>=1.18
-Requires-Dist: matplotlib>=2.1.0
-Requires-Dist: obspy>=1.2
 
 # LOKI
 
