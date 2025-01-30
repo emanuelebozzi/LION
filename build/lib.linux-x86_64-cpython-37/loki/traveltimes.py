@@ -1,3 +1,5 @@
+# %%
+
 #       This program is free software; you can redistribute it and/or modify
 #       it under the terms of the GNU General Public License as published by
 #       the Free Software Foundation; either version 2 of the License, or
@@ -16,7 +18,8 @@
 import os
 import sys
 import numpy as num
-import loki.latlon2cart as ll2c
+import matplotlib.pyplot as plt
+#import loki.latlon2cart as ll2c
 
 class Traveltimes:
 
@@ -62,7 +65,8 @@ class Traveltimes:
         self.x = self.x0+(num.arange(self.dx,(self.nx*self.dx)/num.sqrt(2)))  #define the grid search based on the 2D traveltime grid
         self.y = self.x0+(num.arange(self.dx,(self.nx*self.dx)/num.sqrt(2)))  #define the grid search based on the 2D traveltime grid (cateto della diagonale)
         self.z = self.z0+(num.arange(0,self.nz)*self.dz)  
-        self.nyz=self.nx*self.nx*self.nz 
+        self.nxyz=self.nx*self.nx*self.nz 
+        self.nxz=self.nx*self.nz 
         self.delta_das = 0.01  #
 
 
@@ -123,7 +127,7 @@ class Traveltimes:
 
     def ttdb_reduce(self,tt,l_lim,u_lim,zlim=[]):
         latref=self.lat0; lonref=self.lon0; eleref=0.
-        origin=ll2c.Coordinates(latref,lonref,eleref)
+        #origin=ll2c.Coordinates(latref,lonref,eleref)
         x_l,y_l,u_l = origin.geo2cart(l_lim[0],l_lim[1],eleref)
         x_u,y_u,u_u = origin.geo2cart(u_lim[0],u_lim[1],eleref)
         x_l=x_l/1000.; y_l=y_l/1000.
@@ -248,8 +252,29 @@ class Traveltimes:
                 print('Error: reading file for station' + sta)
         return t
 
-# db_path='/Users/francesco/Desktop/KOREA/korea_time'
-# tt0=traveltimes(db_path, 'header.hdr')
+
+
+if __name__=='__main__':
+    db_path='/home/emanuele/data/emanuele/loki-das/Traveltimes'
+    tt0=Traveltimes(db_path, 'header_long.hdr', 'station_das_ign.tmp')
+    tp0=tt0.load_traveltimes('P', 'das')
+    print(tt0.nxyz)
+    tpxy=tp0['HM01'].reshape(tt0.nx, tt0.nz)
+    #print(tpxy)
+    plt.figure()
+    plt.imshow(tpxy)
+    plt.show(block=True)
+
+
+
+
+# #    tp4=tp3[k]
+# #    print(num.shape(tp4),tt3.nx*tt3.ny*tt3.nz)
+# #    plt.figure()
+# #    plt.imshow(tp2[:,:,0])
+# #    plt.figure()
+# #    plt.imshow(tp3[:,:,0])
+# #    plt.show()
 # tt1=traveltimes(db_path, 'header.hdr')
 # tp0=tt0.load_traveltimes('P','layer')
 # tp1=tt1.load_traveltimes('P','layer')
@@ -273,3 +298,5 @@ class Traveltimes:
 # #    plt.figure()
 # #    plt.imshow(tp3[:,:,0])
 # #    plt.show()
+
+# %%

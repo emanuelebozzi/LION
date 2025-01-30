@@ -1,3 +1,4 @@
+# %%
 import os
 import numpy as num
 import matplotlib.pyplot as plt
@@ -148,21 +149,23 @@ class Loki:
             else:
                 os.mkdir(self.output_path+'/'+event)
 
-
-            tp_modse, ts_modse = tp, ts   #sobj.time_extractor_sta(tp, ts)  # traveltime table in second
-
-
-            #needed for tt_processing 
-
-            tp_modse = num.ascontiguousarray(tp_modse)
-            ts_modse = num.ascontiguousarray(ts_modse)
-
-            print(tp_modse)
+   
+            tpxz=tp['HM01'].reshape(tobj.nxz, 1)
+            tsxz=tp['HM01'].reshape(tobj.nxz, 1)
 
 
-            #this must be changed because it doesn't handle correctly 2D traveltimes, instead of 3D 
+            tp_modse = num.ascontiguousarray(tpxz)
+            ts_modse = num.ascontiguousarray(tsxz)
 
-            tp_mod, ts_mod = tt_processing.tt_f2i(sobj.deltat_sta, tp_modse, ts_modse, npr)  # traveltime table in time sample, for each imaging point traveltimes have substracted the minimal P traveltime
+            print('tp_modse prima di tt_processing', tp_modse, tp_modse.shape)
+
+            ########################################
+
+            tp_mod_sta, ts_mod_sta = tt_processing.tt_f2i(sobj.deltat_sta, tp_modse, ts_modse, npr)  # traveltime table in time sample, for each imaging point traveltimes have substracted the minimal P traveltime
+            tp_mod_das, ts_mod_das = tt_processing.tt_f2i(sobj.deltat_das, tp_modse, ts_modse, npr)  # traveltime table in time sample, for each imaging point traveltimes have substracted the minimal P traveltime
+
+
+# %%
 
 
             cmax_pre = -1.0
@@ -208,13 +211,15 @@ class Loki:
 
                 ######## modify 3D>>2D ##############
 
-                print('i am here 3')
+                print('input (STA) before locator', tp_mod_sta, ts_mod_sta, obs_dataP_sta, obs_dataS_sta, obs_dataP_sta.shape)
 
+                print('input (DAS) before locator', tp_mod_das, ts_mod_das, obs_dataP_das, obs_dataS_das, obs_dataP_das.shape)
                 
-                iloctime_sta, corrmatrix_sta = location_t0.stacking(tp_mod, ts_mod, obs_dataP_sta, obs_dataS_sta, npr)  # iloctime[0]: the grid index of the maximum stacking point; iloctime[1]: the time index at the maximum stacking point
-                
-                print('tp_modse_sta:', tp_mod)
+                iloctime_sta, corrmatrix_sta = location_t0.stacking(tp_mod_sta, ts_mod_sta, obs_dataP_sta, obs_dataS_sta, npr)  # iloctime[0]: the grid index of the maximum stacking point; iloctime[1]: the time index at the maximum stacking point
+                iloctime_das, corrmatrix_das = location_t0.stacking(tp_mod_das, ts_mod_das, obs_dataP_das, obs_dataS_das, npr)  # iloptime_das[0]: grid index; iloptime_das[1]: time index
 
+                print('output location stations:', iloctime_sta, corrmatrix_sta, corrmatrix_sta.shape)
+                print('output location DAS channels:', iloctime_das, corrmatrix_das, corrmatrix_das.shape)
                 # 1. Compute evtpmin_sta for all stations in tp_modse_sta
                 evtpmin_sta = {}
                 for station_data in tp_mod:
@@ -249,7 +254,6 @@ class Loki:
 
                 
 
-                iloptime_das, corrmatrix_das = location_t0.stacking(tp_mod, ts_mod, obs_dataP_das, obs_dataS_das, npr)  # iloptime_das[0]: grid index; iloptime_das[1]: time index
 
                 # Now calculate event origin time for each DAS station
                 for station_key_das, evtpmin_das_value in evtpmin_das.items():

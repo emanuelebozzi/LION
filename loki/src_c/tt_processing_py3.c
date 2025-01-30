@@ -14,7 +14,7 @@
 
 
 /* Prototypes */
-int tt_f2i(double dt, long int nxyz, long int nsta, double tp[nxyz][nsta], double ts[nxyz][nsta], int itp[nxyz][nsta], int its[nxyz][nsta], int nproc);
+int tt_f2i(double dt, long int nxz, long int nsta, double tp[nxz][nsta], double ts[nxz][nsta], int itp[nxz][nsta], int its[nxz][nsta], int nproc);
 /* Python wrapper of the C function stacking */
 
 static char module_docstring[]="Module for computing of the traveltime processing";
@@ -26,7 +26,7 @@ static char tt_f2i_docstring[]="traveltime processing";
 static PyObject *py_tt_f2i(PyObject *self, PyObject *args){
    double dt;
    PyArrayObject *tp, *ts, *itp, *its;
-   long int nxyz, nsta, nproc;
+   long int nxz, nsta, nproc;
    npy_intp dims[2];
    /* checking the format of the arguments */
 
@@ -47,8 +47,6 @@ static PyObject *py_tt_f2i(PyObject *self, PyObject *args){
       return NULL;
    }
 
-
-
    /* Checking that obs_data and stalta are the same type of array and with the same dimensions */
 
    if((PyArray_NDIM(tp) != 2)){
@@ -62,14 +60,14 @@ static PyObject *py_tt_f2i(PyObject *self, PyObject *args){
    }
 
    /* find the dimension of tp */
-   nxyz=dims[0]=(long int) PyArray_DIM(tp, 0);
+   nxz=dims[0]=(long int) PyArray_DIM(tp, 0);
    nsta=dims[1]=(long int) PyArray_DIM(tp, 1);
 
    itp=(PyArrayObject*) PyArray_SimpleNew(2, dims, NPY_INT);
    its=(PyArrayObject*) PyArray_SimpleNew(2, dims, NPY_INT);
 
    /*call stacking */
-   if (0 != tt_f2i(dt, nxyz, nsta, PyArray_DATA(tp), PyArray_DATA(ts), PyArray_DATA(itp), PyArray_DATA(its), nproc)) {
+   if (0 != tt_f2i(dt, nxz, nsta, PyArray_DATA(tp), PyArray_DATA(ts), PyArray_DATA(itp), PyArray_DATA(its), nproc)) {
       PyErr_SetString(PyExc_RuntimeError, "running tt_f2i failed.");
       return NULL;
    }
@@ -116,26 +114,15 @@ PyMODINIT_FUNC PyInit_tt_processing(void){
     return m;
 };
 
-int tt_f2i(double dt, long int nxyz, long int nsta, double tp[nxyz][nsta], double ts[nxyz][nsta], int itp[nxyz][nsta], int its[nxyz][nsta], int nproc){
-
-    long int i, j;
-    double tpmin;
+int tt_f2i(double dt, long int nxz, long int nsta, double tp[nxz][nsta], double ts[nxz][nsta], int itp[nxz][nsta], int its[nxz][nsta], int nproc) {
+    long int i;
 
     omp_set_num_threads(nproc);
 
-    #pragma omp parallel for private(j,tpmin)
-    for(i=0;i<nxyz;i++){
-
-       tpmin=tp[i][0];
-
-       for(j=0;j<nsta;j++){
-           tpmin=min(tp[i][j],tpmin);
-       }
-
-       for(j=0;j<nsta;j++){
-           itp[i][j]=(int) lround((tp[i][j]-tpmin)/dt);
-           its[i][j]=(int) lround((ts[i][j]-tpmin)/dt);
-       }
+    #pragma omp parallel for
+    for(i = 0; i < nxz; i++) {
+        itp[i][0] = (int) lround(tp[i][0] / dt);
+        its[i][0] = (int) lround(ts[i][0] / dt);
     }
     return 0;
 }
