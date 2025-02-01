@@ -1,5 +1,6 @@
 # %%
 import os
+import math
 import numpy as num
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
@@ -157,9 +158,11 @@ class Loki:
             tp_modse = num.ascontiguousarray(tpxz)
             ts_modse = num.ascontiguousarray(tsxz)
 
-            print('tp_modse prima di tt_processing', tp_modse, tp_modse.shape)
-
+            print('sobj.deltat_sta', sobj.deltat_sta)
+            print('sobj.deltat_das', sobj.deltat_das)
             ########################################
+
+
 
             tp_mod_sta, ts_mod_sta = tt_processing.tt_f2i(sobj.deltat_sta, tp_modse, ts_modse, npr)  # traveltime table in time sample, for each imaging point traveltimes have substracted the minimal P traveltime
             tp_mod_das, ts_mod_das = tt_processing.tt_f2i(sobj.deltat_das, tp_modse, ts_modse, npr)  # traveltime table in time sample, for each imaging point traveltimes have substracted the minimal P traveltime
@@ -211,17 +214,130 @@ class Loki:
 
                 ######## modify 3D>>2D ##############
 
+
+                import matplotlib.pyplot as plt
+                import numpy as np
+
+                # Save the observed P-wave data for STA (Station)
+                # Assuming obs_dataP_sta is the data with shape (6591, 8000)
+                plt.figure(figsize=(10, 10))
+                plt.plot(tp_modse, '*')
+                plt.title('tp mod sta')
+
+
+                # Save the figure as a PNG file
+                plt.tight_layout()
+                plt.savefig('tp_modse.png')  # Save the plot to a file
+                plt.close()  # Close the plot to free up memory
+
+
+                plt.figure(figsize=(10, 10))
+                plt.plot(tp_mod_sta, '*')
+                plt.title('tp mod sta')
+
+
+                # Save the figure as a PNG file
+                plt.tight_layout()
+                plt.savefig('tp_mod_sta.png')  # Save the plot to a file
+                plt.close()  # Close the plot to free up memory
+
+                # Save the observed P-wave data for STA (Station)
+                # Assuming obs_dataP_sta is the data with shape (6591, 8000)
+                plt.figure(figsize=(12, 8))
+                plt.imshow(obs_dataP_sta, aspect='auto', cmap='seismic', origin='lower', interpolation='none')
+                plt.colorbar(label='Amplitude')
+                plt.title('Observed P-Wave Data (STA) - Space vs Time')
+                plt.xlabel('Time Samples')
+                plt.ylabel('Station Index')
+
+                # Save the figure as a PNG file
+                plt.tight_layout()
+                plt.savefig('observed_p_wave_sta.png')  # Save the plot to a file
+                plt.close()  # Close the plot to free up memory
+
+                # Save the observed P-wave data for DAS (Distributed Acoustic Sensing)
+                # Assuming obs_dataP_das is the data with shape (6591, 8000)
+                plt.figure(figsize=(12, 8))
+                plt.imshow(obs_dataP_das, aspect='auto', cmap='seismic', origin='lower', interpolation='none')
+                plt.colorbar(label='Amplitude')
+                plt.title('Observed P-Wave Data (DAS) - Space vs Time')
+                plt.xlabel('Time Samples')
+                plt.ylabel('DAS Channel Index')
+
+                # Save the figure as a PNG file
+                plt.tight_layout()
+                plt.savefig('observed_p_wave_das.png')  # Save the plot to a file
+                plt.close()  # Close the plot to free up memory
+
+
+                ############ 
+
+
+                print("tp_mod_sta shape:", tp_mod_sta.shape)
+                print("ts_mod_sta shape:", ts_mod_sta.shape)
+                print("obs_dataP_sta shape:", obs_dataP_sta.shape)
+                print("obs_dataS_sta shape:", obs_dataS_sta.shape)
+                print("npr:", npr)
+
+                def validate_input_array(arr, name):
+                    """ Validates that an array contains valid numeric values (no NaN, Inf, negative values). """
+                    if isinstance(arr, num.ndarray):
+                        # If it's a NumPy array, check for NaN or Inf values
+                        if num.any(num.isnan(arr)) or num.any(num.isinf(arr)):
+                            print(f"Error: {name} contains invalid value (NaN or Inf).")
+                            return False
+                        if num.any(arr < 0):
+                            print(f"Error: {name} contains negative value.")
+                            return False
+                    elif isinstance(arr, list):
+                        # If it's a Python list, iterate through it and validate
+                        for row in arr:
+                            if not isinstance(row, list):
+                                print(f"Error: {name} contains non-list elements.")
+                                return False
+                            for val in row:
+                                if math.isnan(val) or math.isinf(val):
+                                    print(f"Error: {name} contains invalid value (NaN or Inf): {val}")
+                                    return False
+                                if val < 0:
+                                    print(f"Error: {name} contains negative value: {val}")
+                                    return False
+                    else:
+                        print(f"Error: {name} is neither a NumPy array nor a list.")
+                        return False
+                    return True
+
+                def validate_npr(npr):
+                    """ Validates that `npr` is a valid number. """
+                    if not isinstance(npr, (int, float)):
+                        print("Error: npr should be a number.")
+                        return False
+                    if npr <= 0:
+                        print(f"Error: npr should be positive, but got {npr}.")
+                        return False
+                    return True
+
+
+                # Validate the inputs
+                if validate_input_array(tp_mod_sta, "tp_mod_sta") and \
+                validate_input_array(ts_mod_sta, "ts_mod_sta") and \
+                validate_input_array(obs_dataP_sta, "obs_dataP_sta") and \
+                validate_input_array(obs_dataS_sta, "obs_dataS_sta") and \
+                validate_npr(npr):
+
+                    print('good, i am locating now')
+                    # Proceed with the computation if all validations pass
+                    iloctime_sta, corrmatrix_sta = location_t0.stacking(tp_mod_sta, ts_mod_sta, obs_dataP_sta, obs_dataS_sta, npr)
+                    #iloctime_das, corrmatrix_das = location_t0.stacking(tp_mod_das, ts_mod_das, obs_dataP_das[0:100, :], obs_dataS_das[0:100, :], npr)  # iloptime_das[0]: grid index; iloptime_das[1]: time index
+
                 
+                else:
+                    print("Error: One or more inputs are invalid. Computation skipped.")
 
-                print('input (STA) before locator', tp_mod_sta, ts_mod_sta, obs_dataP_sta, obs_dataS_sta, obs_dataP_sta.shape)
+                #iloctime_sta, corrmatrix_sta = location_t0.stacking(tp_mod_sta, ts_mod_sta, obs_dataP_sta, obs_dataS_sta, npr)  # iloctime[0]: the grid index of the maximum stacking point; iloctime[1]: the time ndex at the maximum stacking point
 
-                print('input (DAS) before locator', tp_mod_das, ts_mod_das, obs_dataP_das[0:10, 0:10], obs_dataS_das[0:1000, 0:1000], obs_dataP_das.shape)
-                
-                iloctime_sta, corrmatrix_sta = location_t0.stacking(tp_mod_sta, ts_mod_sta, obs_dataP_sta, obs_dataS_sta, npr)  # iloctime[0]: the grid index of the maximum stacking point; iloctime[1]: the time index at the maximum stacking point
-                iloctime_das, corrmatrix_das = location_t0.stacking(tp_mod_das, ts_mod_das, obs_dataP_das[0:10, 0:10], obs_dataS_das[0:10, 0:10], npr)  # iloptime_das[0]: grid index; iloptime_das[1]: time index
-
-                print('output location stations:', iloctime_sta, corrmatrix_sta, corrmatrix_sta.shape)
-                print('output location DAS channels:', iloctime_das, corrmatrix_das, corrmatrix_das.shape)
+                print('output location stations:', iloctime_sta, corrmatrix_sta[0,0], corrmatrix_sta.shape)
+                print('output location DAS channels:', iloctime_das, corrmatrix_das[0,0], corrmatrix_das.shape)
                 # 1. Compute evtpmin_sta for all stations in tp_modse_sta
 
                 # corrmatrix is the stacking matrix, in 1D format but can be 
@@ -229,11 +345,13 @@ class Loki:
                 # value during this calculation time period
 
 
-               # evtpmin_sta = {}
-               # for station_data in tp_mod_sta:
-               #     for station_key, station_array in station_data.items():
-               #         # Compute the minimum for each station's array
-               #         evtpmin_sta[station_key] = num.amin(station_array)
+                evtpmin_sta = {}
+                for station_data in tp_mod_sta:
+                    print(tp_mod_sta.shape)
+                    print(station_data)
+                    for station_key, station_array in station_data.items():
+                        # Compute the minimum for each station's array
+                        evtpmin_sta[station_key] = num.amin(station_array)
 
                 # 2. Compute evtpmin_das for all stations in tp_modse_das
                # evtpmin_das = {}

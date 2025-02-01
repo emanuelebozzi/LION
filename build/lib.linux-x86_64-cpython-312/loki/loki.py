@@ -1,5 +1,6 @@
 # %%
 import os
+import math
 import numpy as num
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
@@ -211,83 +212,151 @@ class Loki:
 
                 ######## modify 3D>>2D ##############
 
-                print('input (STA) before locator', tp_mod_sta, ts_mod_sta, obs_dataP_sta, obs_dataS_sta, obs_dataP_sta.shape)
 
-                print('input (DAS) before locator', tp_mod_das, ts_mod_das, obs_dataP_das, obs_dataS_das, obs_dataP_das.shape)
+                print('input (STA) before locator', tp_mod_sta[0,0], ts_mod_sta[0,0], obs_dataP_sta[0,0], obs_dataS_sta[0,0], obs_dataP_sta.shape)
+
+                print('input (DAS) before locator', tp_mod_das[0,0], ts_mod_das[0,0], obs_dataP_das[0,0], obs_dataS_das[0,0], obs_dataP_das.shape)
                 
-                iloctime_sta, corrmatrix_sta = location_t0.stacking(tp_mod_sta, ts_mod_sta, obs_dataP_sta, obs_dataS_sta, npr)  # iloctime[0]: the grid index of the maximum stacking point; iloctime[1]: the time index at the maximum stacking point
-                iloctime_das, corrmatrix_das = location_t0.stacking(tp_mod_das, ts_mod_das, obs_dataP_das, obs_dataS_das, npr)  # iloptime_das[0]: grid index; iloptime_das[1]: time index
+                ############à new 
 
-                print('output location stations:', iloctime_sta, corrmatrix_sta, corrmatrix_sta.shape)
-                print('output location DAS channels:', iloctime_das, corrmatrix_das, corrmatrix_das.shape)
+
+
+
+                def validate_input_array(arr, name):
+                    """ Validates that an array contains valid numeric values (no NaN, Inf, negative values). """
+                    if isinstance(arr, num.ndarray):
+                        # If it's a NumPy array, check for NaN or Inf values
+                        if num.any(num.isnan(arr)) or num.any(num.isinf(arr)):
+                            print(f"Error: {name} contains invalid value (NaN or Inf).")
+                            return False
+                        if num.any(arr < 0):
+                            print(f"Error: {name} contains negative value.")
+                            return False
+                    elif isinstance(arr, list):
+                        # If it's a Python list, iterate through it and validate
+                        for row in arr:
+                            if not isinstance(row, list):
+                                print(f"Error: {name} contains non-list elements.")
+                                return False
+                            for val in row:
+                                if math.isnan(val) or math.isinf(val):
+                                    print(f"Error: {name} contains invalid value (NaN or Inf): {val}")
+                                    return False
+                                if val < 0:
+                                    print(f"Error: {name} contains negative value: {val}")
+                                    return False
+                    else:
+                        print(f"Error: {name} is neither a NumPy array nor a list.")
+                        return False
+                    return True
+
+                def validate_npr(npr):
+                    """ Validates that `npr` is a valid number. """
+                    if not isinstance(npr, (int, float)):
+                        print("Error: npr should be a number.")
+                        return False
+                    if npr <= 0:
+                        print(f"Error: npr should be positive, but got {npr}.")
+                        return False
+                    return True
+
+
+                # Validate the inputs
+                if validate_input_array(tp_mod_sta, "tp_mod_sta") and \
+                validate_input_array(ts_mod_sta, "ts_mod_sta") and \
+                validate_input_array(obs_dataP_sta, "obs_dataP_sta") and \
+                validate_input_array(obs_dataS_sta, "obs_dataS_sta") and \
+                validate_npr(npr):
+
+                    print('good, i am locating now')
+                    # Proceed with the computation if all validations pass
+                    iloctime_sta, corrmatrix_sta = location_t0.stacking(tp_mod_sta, ts_mod_sta, obs_dataP_sta, obs_dataS_sta, npr)
+                    iloctime_das, corrmatrix_das = location_t0.stacking(tp_mod_das, ts_mod_das, obs_dataP_das[0:100, :], obs_dataS_das[0:100, :], npr)  # iloptime_das[0]: grid index; iloptime_das[1]: time index
+
+                
+                else:
+                    print("Error: One or more inputs are invalid. Computation skipped.")
+
+                #iloctime_sta, corrmatrix_sta = location_t0.stacking(tp_mod_sta, ts_mod_sta, obs_dataP_sta, obs_dataS_sta, npr)  # iloctime[0]: the grid index of the maximum stacking point; iloctime[1]: the time ndex at the maximum stacking point
+
+                print('output location stations:', iloctime_sta, corrmatrix_sta[0,0], corrmatrix_sta.shape)
+                print('output location DAS channels:', iloctime_das, corrmatrix_das[0,0], corrmatrix_das.shape)
                 # 1. Compute evtpmin_sta for all stations in tp_modse_sta
+
+                # corrmatrix is the stacking matrix, in 1D format but can be 
+                # reformat to 3D format, each point saves the maximum stacking 
+                # value during this calculation time period
+
+
                 evtpmin_sta = {}
-                for station_data in tp_mod:
+                for station_data in tp_mod_sta:
+                    print(tp_mod_sta.shape)
+                    print(station_data)
                     for station_key, station_array in station_data.items():
                         # Compute the minimum for each station's array
                         evtpmin_sta[station_key] = num.amin(station_array)
 
                 # 2. Compute evtpmin_das for all stations in tp_modse_das
-                evtpmin_das = {}
-                for station_data in tp_modse:
-                    for station_key, station_array in station_data.items():
-                        # Compute the minimum for each DAS station's array
-                        evtpmin_das[station_key] = num.amin(station_array)
+               # evtpmin_das = {}
+               # for station_data in tp_mod_das:
+               #     for station_key, station_array in station_data.items():
+               #         # Compute the minimum for each DAS station's array
+               #         evtpmin_das[station_key] = num.amin(station_array)
 
                 # 3. Calculate event origin time for each station in tp_modse_sta (using evtpmin_sta)
-                for station_key_sta, evtpmin_sta_value in evtpmin_sta.items():
-                    if evtpmin_sta_value is not None:
-                        # Cast the numpy.float32 to a native Python float
-                        evtpmin_sta_value = float(evtpmin_sta_value)
-                        
-                        event_t0_sta = sobj.dtime_max_sta + datetime.timedelta(seconds=iloctime_sta[1]*sobj.deltat_sta) - datetime.timedelta(seconds=evtpmin_sta_value)  # event origin time for sta
-                        event_t0s_sta = event_t0_sta.isoformat()
-                        print(f"Event origin time for station {station_key_sta}: {event_t0s_sta}")
-                    else:
-                        print(f"Station {station_key_sta} has no minimum value in evtpmin_sta")
+#                for station_key_sta, evtpmin_sta_value in evtpmin_sta.items():
+#                    if evtpmin_sta_value is not None:
+#                        # Cast the numpy.float32 to a native Python float
+#                        evtpmin_sta_value = float(evtpmin_sta_value)
+#                        
+#                        event_t0_sta = sobj.dtime_max_sta + datetime.timedelta(seconds=iloctime_sta[1]*sobj.deltat_sta) - datetime.timedelta(seconds=evtpmin_sta_value)  # event origin time for sta
+#                        event_t0s_sta = event_t0_sta.isoformat()
+#                        print(f"Event origin time for station {station_key_sta}: {event_t0s_sta}")
+#                    else:
+#                        print(f"Station {station_key_sta} has no minimum value in evtpmin_sta")
+#
+#                # 4. Process the stacking function for DAS (using evtpmin_das for tp_modse_das)
+#                # Call the stacking function to get iloptime_das and corrmatrix_das
 
-                # 4. Process the stacking function for DAS (using evtpmin_das for tp_modse_das)
-                # Call the stacking function to get iloptime_das and corrmatrix_das
 
-
-                print('tp_mod_das, ts_mod_das', tp_mod, ts_mod)
+ #               print('tp_mod_das, ts_mod_das', tp_mod, ts_mod)
 
                 
 
 
-                # Now calculate event origin time for each DAS station
-                for station_key_das, evtpmin_das_value in evtpmin_das.items():
-                    if evtpmin_das_value is not None:
-                        # Cast the numpy.float32 to a native Python float
-                        evtpmin_das_value = float(evtpmin_das_value)
-                        
-                        # Assuming iloptime_das[0] is the grid index and iloptime_das[1] is the time index
-                        event_t0_das = sobj.dtime_max_das + datetime.timedelta(seconds=iloptime_das[1]*sobj.deltat_das) - datetime.timedelta(seconds=evtpmin_das_value)  # event origin time for das
-                        event_t0s_das = event_t0_das.isoformat()
-                        print(f"Event origin time for DAS station {station_key_das}: {event_t0s_das}")
-                    else:
-                        print(f"Station {station_key_das} has no minimum value in evtpmin_das")
+  #              # Now calculate event origin time for each DAS station
+   #             for station_key_das, evtpmin_das_value in evtpmin_das.items():
+    #                if evtpmin_das_value is not None:
+     #                   # Cast the numpy.float32 to a native Python float
+      #                  evtpmin_das_value = float(evtpmin_das_value)
+       #                 
+        #                # Assuming iloptime_das[0] is the grid index and iloptime_das[1] is the time index
+         #               event_t0_das = sobj.dtime_max_das + datetime.timedelta(seconds=iloptime_das[1]*sobj.deltat_das) - datetime.timedelta(seconds=evtpmin_das_value)  # event origin time for das
+          #              event_t0s_das = event_t0_das.isoformat()
+           #             print(f"Event origin time for DAS station {station_key_das}: {event_t0s_das}")
+            #        else:
+             #           print(f"Station {station_key_das} has no minimum value in evtpmin_das")
 
-                # corrmatrix is the stacking matrix, in 1D format but can be 
-                # reformat to 3D format, each point saves the maximum stacking 
-                # value during this calculation time period
+
+
+
                 cmax_sta = num.max(corrmatrix_sta)
                 cmax_das = num.max(corrmatrix_das)
 
 
-                corrmatrix_sta = num.reshape(corrmatrix_sta,(tobj.nx,tobj.ny,tobj.nz))
-                corrmatrix_das = num.reshape(corrmatrix_das,(tobj.nx,tobj.ny,tobj.nz))
+                corrmatrix_sta = num.reshape(corrmatrix_sta,(tobj.nx,tobj.nx,tobj.nz))
+                corrmatrix_das = num.reshape(corrmatrix_das,(tobj.nx,tobj.nx,tobj.nz))
 
                 corrmatrix = corrmatrix_sta + corrmatrix_das
 
 
-                (ixloc_sta, iyloc_sta, izloc_sta) = num.unravel_index(iloctime_sta[0],(tobj.nx,tobj.ny,tobj.nz))
+                (ixloc_sta, iyloc_sta, izloc_sta) = num.unravel_index(iloctime_sta[0],(tobj.nx,tobj.nx,tobj.nz))
                 xloc_sta = tobj.x[ixloc_sta]
                 yloc_sta = tobj.y[iyloc_sta]
                 zloc_sta = tobj.z[izloc_sta]
 
 
-                (ixloc_das, iyloc_das, izloc_das) = num.unravel_index(iloctime_das[0],(tobj.nx,tobj.ny,tobj.nz))
+                (ixloc_das, iyloc_das, izloc_das) = num.unravel_index(iloctime_das[0],(tobj.nx,tobj.nx,tobj.nz))
                 xloc_das = tobj.x[ixloc_das]
                 yloc_das = tobj.y[iyloc_das]
                 zloc_das = tobj.z[izloc_das]
