@@ -129,15 +129,13 @@ void process_grid_xyz(int nx, int ny, int nz) {
                 // Depth is simply the z-coordinate
                 int depth = z;
 
-                // Print the result for each point
-                printf("Point (%d, %d, %d) -> Index: %d, Distance: %.2f, Depth: %d\n",
-                       x, y, z, index, distance, depth);
-            }
+
+        return index, distance, depth;    
         }
     }
 }
 
-process_grid(nx, ny, nz);
+index3d, distance3d, depth3d = process_grid(nx, ny, nz);
 
 
 #include <stdio.h>
@@ -149,26 +147,24 @@ double calculate_distance_xy(int x, int y) {
 }
 
 // Function to process the grid and assign index, distance, and depth
-void process_grid_xy(int nx, int ny) {
-    for (int y = 0; y < ny; y++) {
+void process_grid_xz(int nx, int nz) {
+    for (int z = 0; z < nz; z++) {
         for (int x = 0; x < nx; x++) {
             // Calculate the ordered index
-            int index = x + y * nx;
+            int index = x + z * nx;
 
             // Calculate distance from the origin (0, 0)
-            double distance = calculate_distance_xy(x, y);
+            double distance = calculate_distance_xy(x, z);
 
             // Depth is simply the y-coordinate (you can change this definition if needed)
-            int depth = y;
+            int depth = z;
 
-            // Print the result for each point
-            printf("Point (%d, %d) -> Index: %d, Distance: %.2f, Depth: %d\n",
-                   x, y, index, distance, depth);
+        return index, distance, depth;
         }
     }
 }
 
-process_grid_xy(nx, ny, nz);
+index2d, distance2d, depth2d; process_grid_xz(nx, nz);
 
 
 /* Stacking Function */
@@ -198,21 +194,21 @@ int stacking(long int nx, long int nz, long int nxz, long int nxyz, long int nst
 
         //compute distance and depth from the reference 0,0 knowing nx, ny, nz
 
-        depth = //read from the grid i created
-        distance = //read from the grid i created
+        curr_depth = depth3d[w] //read from the grid i created
+        curr_distance =  distance3d[w] //read from the grid i created
 
 
         // Find the closest traveltime position to the distance/depth value in the travel time lookup table
         // compare the 2D distances with 3D distances and find the position on the 2D grid of the most similar values
         // do the same with the depth 
 
-        closest_tt = 
+        // both distance and depth distance2d, depth2d
 
+        closest_tt = 
 
         stkmax = -1.0;  // Reset for each new grid point
         kmax = 0;
 
-        
         // Iterate over the samples
         for (k = 0; k < nsamples; k++) {
             stk0p = 0.0;
