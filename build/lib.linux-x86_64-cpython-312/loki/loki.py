@@ -94,13 +94,13 @@ class Loki:
 
         tobj = traveltimes.Traveltimes(self.db_path, self.hdr_filename, self.geometry_filename)
 
-        print('The traveltime object is:', tobj)
+        #print('The traveltime object is:', tobj)
 
-        attributes = [name for name in dir(tobj) if not callable(getattr(tobj, name)) and not name.startswith("__")]
-        methods = [name for name in dir(tobj) if callable(getattr(tobj, name)) and not name.startswith("__")]
+        #attributes = [name for name in dir(tobj) if not callable(getattr(tobj, name)) and not name.startswith("__")]
+        #methods = [name for name in dir(tobj) if callable(getattr(tobj, name)) and not name.startswith("__")]
 
-        print("Attributes tobj:", attributes)
-        print("Methods tobj:", methods)
+        #print("Attributes tobj:", attributes)
+        #print("Methods tobj:", methods)
 
         #load the traveltimes
 
@@ -118,13 +118,13 @@ class Loki:
 
             wobj = waveforms.Waveforms(tobj=tobj, data_path = data_path, event_path=event_path, extension_sta="*", extension_das='CANDAS2_2023-01-07_10-48-10.h5', freq=None)
 
-            print('The waveforms object is:', wobj)
+            #print('The waveforms object is:', wobj)
 
-            attributes = [name for name in dir(wobj) if not callable(getattr(wobj, name)) and not name.startswith("__")]
-            methods = [name for name in dir(wobj) if callable(getattr(wobj, name)) and not name.startswith("__")]
+            #attributes = [name for name in dir(wobj) if not callable(getattr(wobj, name)) and not name.startswith("__")]
+            #methods = [name for name in dir(wobj) if callable(getattr(wobj, name)) and not name.startswith("__")]
 
-            print("Attributes wobj:", attributes)
-            print("Methods wobj:", methods)
+            #print("Attributes wobj:", attributes)
+            #print("Methods wobj:", methods)
             print('The stream DAS is:', wobj.stream_das)
             print('The stream station is:', wobj.stream_sta)
 
@@ -132,13 +132,7 @@ class Loki:
 
             sobj = stacktraces.Stacktraces(tobj, wobj, **inputs)
 
-            print('The stacktraces object is:', sobj)
 
-            attributes = [name for name in dir(sobj) if not callable(getattr(sobj, name)) and not name.startswith("__")]
-            methods = [name for name in dir(sobj) if callable(getattr(sobj, name)) and not name.startswith("__")]
-
-            print("Attributes sobj:", attributes)
-            print("Methods sobj:", methods)
 
 
             event = event_path.split('/')[-1]
@@ -152,15 +146,24 @@ class Loki:
 
    
             tpxz=tp['HM01'].reshape(tobj.nxz, 1)
-            tsxz=tp['HM01'].reshape(tobj.nxz, 1)
+            tsxz=ts['HM01'].reshape(tobj.nxz, 1)
+
+            print('tpxz:', tpxz, tpxz.shape, tpxz.dtype)
+            print('tsxz:', tsxz, tsxz.shape, tsxz.dtype)
+
+
+            tpxz = num.asarray(tpxz, dtype=num.float64)
+            tsxz = num.asarray(tsxz, dtype=num.float64)
 
 
             tp_modse = num.ascontiguousarray(tpxz)
             ts_modse = num.ascontiguousarray(tsxz)
 
-            print('tp_modse prima di tt_processing', tp_modse, tp_modse.shape)
-
+            print('sobj.deltat_sta', sobj.deltat_sta)
+            print('sobj.deltat_das', sobj.deltat_das)
             ########################################
+
+
 
             tp_mod_sta, ts_mod_sta = tt_processing.tt_f2i(sobj.deltat_sta, tp_modse, ts_modse, npr)  # traveltime table in time sample, for each imaging point traveltimes have substracted the minimal P traveltime
             tp_mod_das, ts_mod_das = tt_processing.tt_f2i(sobj.deltat_das, tp_modse, ts_modse, npr)  # traveltime table in time sample, for each imaging point traveltimes have substracted the minimal P traveltime
@@ -213,14 +216,69 @@ class Loki:
                 ######## modify 3D>>2D ##############
 
 
-                print('input (STA) before locator', tp_mod_sta[0,0], ts_mod_sta[0,0], obs_dataP_sta[0,0], obs_dataS_sta[0,0], obs_dataP_sta.shape)
+                import matplotlib.pyplot as plt
+                import numpy as np
 
-                print('input (DAS) before locator', tp_mod_das[0,0], ts_mod_das[0,0], obs_dataP_das[0,0], obs_dataS_das[0,0], obs_dataP_das.shape)
-                
-                ############à new 
+                # Save the observed P-wave data for STA (Station)
+                # Assuming obs_dataP_sta is the data with shape (6591, 8000)
+                plt.figure(figsize=(10, 10))
+                plt.plot(tp_modse, '*')
+                plt.title('tp mod sta')
 
 
+                # Save the figure as a PNG file
+                plt.tight_layout()
+                plt.savefig('tp_modse.png')  # Save the plot to a file
+                plt.close()  # Close the plot to free up memory
 
+
+                plt.figure(figsize=(10, 10))
+                plt.plot(tp_mod_sta, '*')
+                plt.title('tp mod sta')
+
+
+                # Save the figure as a PNG file
+                plt.tight_layout()
+                plt.savefig('tp_mod_sta.png')  # Save the plot to a file
+                plt.close()  # Close the plot to free up memory
+
+                # Save the observed P-wave data for STA (Station)
+                # Assuming obs_dataP_sta is the data with shape (6591, 8000)
+                plt.figure(figsize=(12, 8))
+                plt.imshow(obs_dataP_sta, aspect='auto', cmap='seismic', origin='lower', interpolation='none')
+                plt.colorbar(label='Amplitude')
+                plt.title('Observed P-Wave Data (STA) - Space vs Time')
+                plt.xlabel('Time Samples')
+                plt.ylabel('Station Index')
+
+                # Save the figure as a PNG file
+                plt.tight_layout()
+                plt.savefig('observed_p_wave_sta.png')  # Save the plot to a file
+                plt.close()  # Close the plot to free up memory
+
+                # Save the observed P-wave data for DAS (Distributed Acoustic Sensing)
+                # Assuming obs_dataP_das is the data with shape (6591, 8000)
+                plt.figure(figsize=(12, 8))
+                plt.imshow(obs_dataP_das, aspect='auto', cmap='seismic', origin='lower', interpolation='none')
+                plt.colorbar(label='Amplitude')
+                plt.title('Observed P-Wave Data (DAS) - Space vs Time')
+                plt.xlabel('Time Samples')
+                plt.ylabel('DAS Channel Index')
+
+                # Save the figure as a PNG file
+                plt.tight_layout()
+                plt.savefig('observed_p_wave_das.png')  # Save the plot to a file
+                plt.close()  # Close the plot to free up memory
+
+
+                ############ 
+
+
+                print("tp_mod_sta shape:", tp_mod_sta.shape)
+                print("ts_mod_sta shape:", ts_mod_sta.shape)
+                print("obs_dataP_sta shape:", obs_dataP_sta.shape)
+                print("obs_dataS_sta shape:", obs_dataS_sta.shape)
+                print("npr:", npr)
 
                 def validate_input_array(arr, name):
                     """ Validates that an array contains valid numeric values (no NaN, Inf, negative values). """
@@ -269,9 +327,11 @@ class Loki:
                 validate_npr(npr):
 
                     print('good, i am locating now')
+                    
+
                     # Proceed with the computation if all validations pass
                     iloctime_sta, corrmatrix_sta = location_t0.stacking(tp_mod_sta, ts_mod_sta, obs_dataP_sta, obs_dataS_sta, npr)
-                    iloctime_das, corrmatrix_das = location_t0.stacking(tp_mod_das, ts_mod_das, obs_dataP_das[0:100, :], obs_dataS_das[0:100, :], npr)  # iloptime_das[0]: grid index; iloptime_das[1]: time index
+                    iloctime_das, corrmatrix_das = location_t0.stacking(tp_mod_das, ts_mod_das, obs_dataP_das[0:50, :], obs_dataS_das[0:50, :], npr)  # iloptime_das[0]: grid index; iloptime_das[1]: time index
 
                 
                 else:
@@ -279,8 +339,8 @@ class Loki:
 
                 #iloctime_sta, corrmatrix_sta = location_t0.stacking(tp_mod_sta, ts_mod_sta, obs_dataP_sta, obs_dataS_sta, npr)  # iloctime[0]: the grid index of the maximum stacking point; iloctime[1]: the time ndex at the maximum stacking point
 
-                print('output location stations:', iloctime_sta, corrmatrix_sta[0,0], corrmatrix_sta.shape)
-                print('output location DAS channels:', iloctime_das, corrmatrix_das[0,0], corrmatrix_das.shape)
+                print('output location stations:', iloctime_sta, corrmatrix_sta, corrmatrix_sta.shape)
+                print('output location DAS channels:', iloctime_das, corrmatrix_das, corrmatrix_das.shape)
                 # 1. Compute evtpmin_sta for all stations in tp_modse_sta
 
                 # corrmatrix is the stacking matrix, in 1D format but can be 

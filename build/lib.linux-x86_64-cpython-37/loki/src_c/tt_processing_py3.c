@@ -20,7 +20,7 @@
 // Prototypes
 int tt_f2i(double dt, long int nxz, long int nsta, double (*tp)[nsta], double (*ts)[nsta], int (*itp)[nsta], int (*its)[nsta], int nproc);
 
-// Python wrapper of the C function stacking
+// Python wrapper of the C function
 static char module_docstring[] = "Module for computing traveltime processing";
 static char tt_f2i_docstring[] = "Traveltime processing";
 
@@ -28,13 +28,13 @@ static char tt_f2i_docstring[] = "Traveltime processing";
 void validate_array(double *tp, double *ts, long int nxz, long int nsta) {
     for (long int i = 0; i < nxz; i++) {
         for (long int j = 0; j < nsta; j++) {
-            // Check and validate tp
-            if (isnan(tp[i * nsta + j]) || tp[i * nsta + j] < MIN_VALID_VALUE || tp[i * nsta + j] > MAX_VALID_VALUE) {
-                tp[i * nsta + j] = 0.0;  // Default to 0 if invalid
+            long int idx = i * nsta + j;
+
+            if (isnan(tp[idx]) || tp[idx] < MIN_VALID_VALUE || tp[idx] > MAX_VALID_VALUE) {
+                tp[idx] = 0.0;
             }
-            // Check and validate ts
-            if (isnan(ts[i * nsta + j]) || ts[i * nsta + j] < MIN_VALID_VALUE || ts[i * nsta + j] > MAX_VALID_VALUE) {
-                ts[i * nsta + j] = 0.0;  // Default to 0 if invalid
+            if (isnan(ts[idx]) || ts[idx] < MIN_VALID_VALUE || ts[idx] > MAX_VALID_VALUE) {
+                ts[idx] = 0.0;
             }
         }
     }
@@ -43,61 +43,77 @@ void validate_array(double *tp, double *ts, long int nxz, long int nsta) {
 // Wrapper function to interface with Python
 static PyObject *py_tt_f2i(PyObject *self, PyObject *args) {
     double dt;
-    PyArrayObject *tp, *ts, *itp, *its;
+    PyArrayObject *tp, *ts;
     long int nxz, nsta, nproc;
     npy_intp dims[2];
-    
+
     // Parse the input arguments
     if (!PyArg_ParseTuple(args, "dOOi", &dt, &tp, &ts, &nproc)) {
-        PyErr_SetString(PyExc_RuntimeError, "Invalid arguments for the C function ttprocessing");
+        PyErr_SetString(PyExc_RuntimeError, "Invalid arguments for the C function tt_f2i");
         return NULL;
     }
 
-    // Checking that tp and ts are contiguous arrays
-    if (!PyArray_Check(tp) || !PyArray_ISCONTIGUOUS(tp)) {
-        PyErr_SetString(PyExc_RuntimeError, "tp is not a contiguous array");
+    // Ensure inputs are NumPy arrays
+    if (!PyArray_Check(tp) || !PyArray_ISCONTIGUOUS(tp) || PyArray_TYPE(tp) != NPY_DOUBLE) {
+        PyErr_SetString(PyExc_RuntimeError, "tp must be a contiguous array of type double");
         return NULL;
     }
-    if (!PyArray_Check(ts) || !PyArray_ISCONTIGUOUS(ts)) {
-        PyErr_SetString(PyExc_RuntimeError, "ts is not a contiguous array");
+    if (!PyArray_Check(ts) || !PyArray_ISCONTIGUOUS(ts) || PyArray_TYPE(ts) != NPY_DOUBLE) {
+        PyErr_SetString(PyExc_RuntimeError, "ts must be a contiguous array of type double");
         return NULL;
     }
 
-    // Checking the dimensions of tp and ts arrays
+    // Ensure both arrays are 2D
     if (PyArray_NDIM(tp) != 2) {
-        PyErr_SetString(PyExc_RuntimeError, "tp is not a 2D array");
+        PyErr_SetString(PyExc_RuntimeError, "tp must be a 2D array");
         return NULL;
     }
     if (PyArray_NDIM(ts) != 2) {
-        PyErr_SetString(PyExc_RuntimeError, "ts is not a 2D array");
+        PyErr_SetString(PyExc_RuntimeError, "ts must be a 2D array");
         return NULL;
     }
 
-    // Get the dimensions of the tp array
+    // Ensure both arrays have the same shape
+    if (PyArray_DIM(tp, 0) != PyArray_DIM(ts, 0) || PyArray_DIM(tp, 1) != PyArray_DIM(ts, 1)) {
+        PyErr_SetString(PyExc_RuntimeError, "tp and ts must have the same shape");
+        return NULL;
+    }
+
+    // Get dimensions
     nxz = dims[0] = (long int)PyArray_DIM(tp, 0);
     nsta = dims[1] = (long int)PyArray_DIM(tp, 1);
 
-    // Create empty arrays for the results (itp and its)
-    itp = (PyArrayObject*)PyArray_SimpleNew(2, dims, NPY_INT);
-    its = (PyArrayObject*)PyArray_SimpleNew(2, dims, NPY_INT);
+    // Create output arrays
+    PyArrayObject *itp = (PyArrayObject*)PyArray_SimpleNew(2, dims, NPY_INT);
+    PyArrayObject *its = (PyArrayObject*)PyArray_SimpleNew(2, dims, NPY_INT);
 
-    // Convert tp and ts arrays to C-style arrays for processing
-    double *tp_data = (double *)PyArray_DATA(tp);
-    double *ts_data = (double *)PyArray_DATA(ts);
-    
-    // Validate the tp and ts arrays before processing
-    validate_array(tp_data, ts_data, nxz, nsta);
-
-    // Call the C function tt_f2i
-    if (tt_f2i(dt, nxz, nsta, (double (*)[nsta])tp_data, (double (*)[nsta])ts_data, (int (*)[nsta])PyArray_DATA(itp), (int (*)[nsta])PyArray_DATA(its), nproc) != 0) {
-        PyErr_SetString(PyExc_RuntimeError, "Running tt_f2i failed.");
+    if (!itp || !its) {
+        PyErr_SetString(PyExc_RuntimeError, "Failed to allocate output arrays");
         return NULL;
     }
 
-    // Return the results
+    // Get raw data pointers
+    double *tp_data = (double *)PyArray_DATA(tp);
+    double *ts_data = (double *)PyArray_DATA(ts);
+    int *itp_data = (int *)PyArray_DATA(itp);
+    int *its_data = (int *)PyArray_DATA(its);
+
+    // Validate arrays before processing
+    validate_array(tp_data, ts_data, nxz, nsta);
+
+    // Call the C processing function
+    if (tt_f2i(dt, nxz, nsta, (double (*)[nsta])tp_data, (double (*)[nsta])ts_data, (int (*)[nsta])itp_data, (int (*)[nsta])its_data, nproc) != 0) {
+        PyErr_SetString(PyExc_RuntimeError, "Error occurred during tt_f2i execution.");
+        return NULL;
+    }
+
+    // Return the results as a tuple
     PyObject *result = Py_BuildValue("OO", itp, its);
+
+    // Decrease reference counts to avoid memory leaks
     Py_DECREF(itp);
     Py_DECREF(its);
+
     return result;
 }
 
@@ -118,26 +134,24 @@ static struct PyModuleDef modtt_processing = {
 
 // Module initialization
 PyMODINIT_FUNC PyInit_tt_processing(void) {
-    PyObject *m;
-    m = PyModule_Create(&modtt_processing);
+    PyObject *m = PyModule_Create(&modtt_processing);
     if (m == NULL)
         return NULL;
-    import_array();
+    import_array();  // Initialize NumPy C API
     return m;
-};
+}
 
 // C function to process the tp and ts arrays
 int tt_f2i(double dt, long int nxz, long int nsta, double (*tp)[nsta], double (*ts)[nsta], int (*itp)[nsta], int (*its)[nsta], int nproc) {
-    long int i;
-
-    // Set the number of OpenMP threads
     omp_set_num_threads(nproc);
 
-    // Parallel processing loop for calculating itp and its
+    // Parallel loop for processing
     #pragma omp parallel for
-    for (i = 0; i < nxz; i++) {
-        itp[i][0] = (int)lround(tp[i][0] / dt);
-        its[i][0] = (int)lround(ts[i][0] / dt);
+    for (long int i = 0; i < nxz; i++) {
+        for (long int j = 0; j < nsta; j++) {
+            itp[i][j] = (int)lround(tp[i][j] / dt);
+            its[i][j] = (int)lround(ts[i][j] / dt);
+        }
     }
 
     return 0;

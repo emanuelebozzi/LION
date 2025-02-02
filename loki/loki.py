@@ -94,13 +94,13 @@ class Loki:
 
         tobj = traveltimes.Traveltimes(self.db_path, self.hdr_filename, self.geometry_filename)
 
-        print('The traveltime object is:', tobj)
+        #print('The traveltime object is:', tobj)
 
-        attributes = [name for name in dir(tobj) if not callable(getattr(tobj, name)) and not name.startswith("__")]
-        methods = [name for name in dir(tobj) if callable(getattr(tobj, name)) and not name.startswith("__")]
+        #attributes = [name for name in dir(tobj) if not callable(getattr(tobj, name)) and not name.startswith("__")]
+        #methods = [name for name in dir(tobj) if callable(getattr(tobj, name)) and not name.startswith("__")]
 
-        print("Attributes tobj:", attributes)
-        print("Methods tobj:", methods)
+        #print("Attributes tobj:", attributes)
+        #print("Methods tobj:", methods)
 
         #load the traveltimes
 
@@ -118,13 +118,13 @@ class Loki:
 
             wobj = waveforms.Waveforms(tobj=tobj, data_path = data_path, event_path=event_path, extension_sta="*", extension_das='CANDAS2_2023-01-07_10-48-10.h5', freq=None)
 
-            print('The waveforms object is:', wobj)
+            #print('The waveforms object is:', wobj)
 
-            attributes = [name for name in dir(wobj) if not callable(getattr(wobj, name)) and not name.startswith("__")]
-            methods = [name for name in dir(wobj) if callable(getattr(wobj, name)) and not name.startswith("__")]
+            #attributes = [name for name in dir(wobj) if not callable(getattr(wobj, name)) and not name.startswith("__")]
+            #methods = [name for name in dir(wobj) if callable(getattr(wobj, name)) and not name.startswith("__")]
 
-            print("Attributes wobj:", attributes)
-            print("Methods wobj:", methods)
+            #print("Attributes wobj:", attributes)
+            #print("Methods wobj:", methods)
             print('The stream DAS is:', wobj.stream_das)
             print('The stream station is:', wobj.stream_sta)
 
@@ -132,13 +132,7 @@ class Loki:
 
             sobj = stacktraces.Stacktraces(tobj, wobj, **inputs)
 
-            print('The stacktraces object is:', sobj)
 
-            attributes = [name for name in dir(sobj) if not callable(getattr(sobj, name)) and not name.startswith("__")]
-            methods = [name for name in dir(sobj) if callable(getattr(sobj, name)) and not name.startswith("__")]
-
-            print("Attributes sobj:", attributes)
-            print("Methods sobj:", methods)
 
 
             event = event_path.split('/')[-1]
@@ -152,7 +146,14 @@ class Loki:
 
    
             tpxz=tp['HM01'].reshape(tobj.nxz, 1)
-            tsxz=tp['HM01'].reshape(tobj.nxz, 1)
+            tsxz=ts['HM01'].reshape(tobj.nxz, 1)
+
+            print('tpxz:', tpxz, tpxz.shape, tpxz.dtype)
+            print('tsxz:', tsxz, tsxz.shape, tsxz.dtype)
+
+
+            tpxz = num.asarray(tpxz, dtype=num.float64)
+            tsxz = num.asarray(tsxz, dtype=num.float64)
 
 
             tp_modse = num.ascontiguousarray(tpxz)
@@ -326,9 +327,18 @@ class Loki:
                 validate_npr(npr):
 
                     print('good, i am locating now')
+                    print('tobj.nx', tobj.nx)
+                    print('tobj.nz', tobj.nz)
+
+                    tp_mod_sta = num.ascontiguousarray(tp_mod_sta)
+                    ts_mod_sta = num.ascontiguousarray(ts_mod_sta)
+                    obs_dataP_sta = num.ascontiguousarray(obs_dataP_sta)
+                    obs_dataS_sta = num.ascontiguousarray(obs_dataS_sta)
+                    
+
                     # Proceed with the computation if all validations pass
-                    iloctime_sta, corrmatrix_sta = location_t0.stacking(tp_mod_sta, ts_mod_sta, obs_dataP_sta, obs_dataS_sta, npr)
-                    #iloctime_das, corrmatrix_das = location_t0.stacking(tp_mod_das, ts_mod_das, obs_dataP_das[0:100, :], obs_dataS_das[0:100, :], npr)  # iloptime_das[0]: grid index; iloptime_das[1]: time index
+                    iloctime_sta, corrmatrix_sta = location_t0.stacking(tobj.nx, tobj.nz, tp_mod_sta, ts_mod_sta, obs_dataP_sta, obs_dataS_sta, npr)
+                    iloctime_das, corrmatrix_das = location_t0.stacking(tp_mod_das, ts_mod_das, obs_dataP_das[0:50, :], obs_dataS_das[0:50, :], npr)  # iloptime_das[0]: grid index; iloptime_das[1]: time index
 
                 
                 else:
@@ -336,8 +346,8 @@ class Loki:
 
                 #iloctime_sta, corrmatrix_sta = location_t0.stacking(tp_mod_sta, ts_mod_sta, obs_dataP_sta, obs_dataS_sta, npr)  # iloctime[0]: the grid index of the maximum stacking point; iloctime[1]: the time ndex at the maximum stacking point
 
-                print('output location stations:', iloctime_sta, corrmatrix_sta[0,0], corrmatrix_sta.shape)
-                print('output location DAS channels:', iloctime_das, corrmatrix_das[0,0], corrmatrix_das.shape)
+                print('output location stations:', iloctime_sta, corrmatrix_sta, corrmatrix_sta.shape)
+                print('output location DAS channels:', iloctime_das, corrmatrix_das, corrmatrix_das.shape)
                 # 1. Compute evtpmin_sta for all stations in tp_modse_sta
 
                 # corrmatrix is the stacking matrix, in 1D format but can be 
