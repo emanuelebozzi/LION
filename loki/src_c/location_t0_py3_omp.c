@@ -29,7 +29,7 @@ static PyObject *py_stacking(PyObject *self, PyObject *args) {
     PyArrayObject *itp, *its, *stalta_p, *stalta_s, *corrmatrix;
     long int nx, nz, nxz, nxyz, nsamples, nsta, nproc;
     long int iloc, itime;
-    npy_intp dims[1];  // Array to store dimensions of the correlation matrix
+    npy_intp dims[1];  // Array to store dimensions of coherence matrix 
 
     if (!PyArg_ParseTuple(args, "iiOOOOi", &nx, &nz, &itp, &its, &stalta_p, &stalta_s, &nproc)) {
         PyErr_SetString(PyExc_RuntimeError, "Invalid arguments for the C function stacking");
@@ -54,40 +54,23 @@ static PyObject *py_stacking(PyObject *self, PyObject *args) {
         return NULL;
     }
 
-    /* Verify dimensionality of input arrays */
-    if (PyArray_NDIM(stalta_p) != 2) {
-        PyErr_SetString(PyExc_RuntimeError, "stalta_p is not a 2D array");
-        return NULL;
-    }
-    if (PyArray_NDIM(stalta_s) != 2) {
-        PyErr_SetString(PyExc_RuntimeError, "stalta_s is not a 2D array");
-        return NULL;
-    }
-    if (PyArray_NDIM(itp) != 2 || PyArray_DIM(itp, 1) != 1 || PyArray_NDIM(its) != 2 || PyArray_DIM(its, 1) != 1) {
-        PyErr_SetString(PyExc_RuntimeError, "itp and its must be 2D arrays with a second dimension of size 1");
-        return NULL;
-    }
-
     /* Get dimensions from input arrays */
     nsta = (long int) PyArray_DIM(stalta_p, 0);  // Number of stations
     nsamples = (long int) PyArray_DIM(stalta_p, 1);  // Number of samples per station
     
-    nxz = nx * nz; 
-    nxyz = nx * nx * nz;  // Total number of grid points in 3D space
+    nxz = nx * nz; //number of points for the 2D traveltime lookup table
+    nxyz = nx * nx * nz;  // Total number of grid points in 3D space (even location)
 
     /* Allocate memory for the correlation matrix */
     dims[0] = nxyz;  // Set dimension of correlation matrix array
     corrmatrix = (PyArrayObject*) PyArray_SimpleNew(1, dims, NPY_DOUBLE);  // Create 1D NumPy array for the correlation matrix
 
-    /* Convert itp and its to 1D arrays (flatten the 2D arrays) */
-    int *itp_flat = (int*) PyArray_DATA(itp);  // Extract data as 1D array
-    int *its_flat = (int*) PyArray_DATA(its);  // Extract data as 1D array
-
     /* Call the stacking function */
-    if (stacking(nx, nz, nxz, nxyz, nsta, nsamples, itp_flat, its_flat, 
-                 (double (*)[nsamples]) PyArray_DATA(stalta_p), 
-                 (double (*)[nsamples]) PyArray_DATA(stalta_s), 
-                 (double*) PyArray_DATA(corrmatrix), &iloc, &itime, nproc) != 0) {
+    if (stacking(nx, nz, nxz, nxyz, nsta, nsamples, 
+                (int*) PyArray_DATA(itp), (int*) PyArray_DATA(its), 
+                (double (*)[nsamples]) PyArray_DATA(stalta_p), 
+                (double (*)[nsamples]) PyArray_DATA(stalta_s), 
+                (double*) PyArray_DATA(corrmatrix), &iloc, &itime, nproc) != 0) {
         PyErr_SetString(PyExc_RuntimeError, "Running stacking failed.");
         return NULL;  // Return error if stacking function fails
     }
@@ -96,11 +79,6 @@ static PyObject *py_stacking(PyObject *self, PyObject *args) {
     PyObject *iloctime = Py_BuildValue("(l,l)", iloc, itime);  // Build tuple with location and time
     PyObject *cohermat = Py_BuildValue("O", corrmatrix);  // Build Python object for the correlation matrix
     PyObject *locres = Py_BuildValue("(OO)", iloctime, cohermat);  // Bundle location and matrix into a tuple
-
-    /* Clean up references */
-    Py_DECREF(iloctime);  // Decrement reference count of iloctime
-    Py_DECREF(cohermat);  // Decrement reference count of cohermat
-    Py_DECREF(corrmatrix);  // Decrement reference count of corrmatrix
 
     return locres;  // Return the results as a Python tuple
 }
@@ -130,66 +108,151 @@ PyMODINIT_FUNC PyInit_location_t0(void) {
     return m;  // Return the initialized module
 }
 
-/* Core stacking function with cylindrical symmetry mapping */
+
+
+// Function to calculate Euclidean distance
+double calculate_distance_xyz(int x, int y, int z) {
+    return sqrt(x * x + y * y + z * z);
+}
+
+// Function to process the grid and assign index, distance, and depth
+void process_grid_xyz(int nx, int ny, int nz) {
+    for (int z = 0; z < nz; z++) {
+        for (int y = 0; y < ny; y++) {
+            for (int x = 0; x < nx; x++) {
+                // Calculate the ordered index
+                int index = x + y * nx + z * nx * ny;
+
+                // Calculate distance from the origin (0, 0, 0)
+                double distance = calculate_distance_xyz(x, y, z);
+
+                // Depth is simply the z-coordinate
+                int depth = z;
+
+                // Print the result for each point
+                printf("Point (%d, %d, %d) -> Index: %d, Distance: %.2f, Depth: %d\n",
+                       x, y, z, index, distance, depth);
+            }
+        }
+    }
+}
+
+process_grid(nx, ny, nz);
+
+
+#include <stdio.h>
+#include <math.h>
+
+// Function to calculate Euclidean distance
+double calculate_distance_xy(int x, int y) {
+    return sqrt(x * x + y * y);
+}
+
+// Function to process the grid and assign index, distance, and depth
+void process_grid_xy(int nx, int ny) {
+    for (int y = 0; y < ny; y++) {
+        for (int x = 0; x < nx; x++) {
+            // Calculate the ordered index
+            int index = x + y * nx;
+
+            // Calculate distance from the origin (0, 0)
+            double distance = calculate_distance_xy(x, y);
+
+            // Depth is simply the y-coordinate (you can change this definition if needed)
+            int depth = y;
+
+            // Print the result for each point
+            printf("Point (%d, %d) -> Index: %d, Distance: %.2f, Depth: %d\n",
+                   x, y, index, distance, depth);
+        }
+    }
+}
+
+process_grid_xy(nx, ny, nz);
+
+
+/* Stacking Function */
 int stacking(long int nx, long int nz, long int nxz, long int nxyz, long int nsta, long int nsamples, 
-             int itp[nxz], int its[nxz], double stalta_p[nsta][nsamples], 
-             double stalta_s[nsta][nsamples], double corrmatrix[nxyz], 
-             long int *iloc, long int *itime, int nproc) {
-
-    long int i, j, k, kmax;
+             int itp[nxz], int its[nxz], double stalta_p[nsta][nsamples], double stalta_s[nsta][nsamples], 
+             double corrmatrix[nxyz], long int *iloc, long int *itime, int nproc) {
+    
+    long int iter = 0, i, j, k, w, kmax;
     int ip, is;
-    double stk0p, stk0s, stkmax, corrmax;
-    corrmax = -1.0;  // Initialize correlation maximum to a very low value
+    double stk0p, stk0s, stkmax;
+    
+    // Set OpenMP threads
+    omp_set_num_threads(nproc);
+    
+    // Initialize tracking variables
+    double corrmax = -1.0;
+    
+    printf("Location process complete at: %3d %%", 0);
+    
+    #pragma omp parallel for shared(iter, corrmax, iloc, itime) private(ip, is, stkmax, stk0p, stk0s, kmax, k, j)
+   
 
-    omp_set_num_threads(nproc);  // Set the number of OpenMP threads
-    printf("Location process complete at : %3d %%", 0);  // Print the starting point
+    for (w = 0; w < nxyz; w++) {  // Loop over the 3D location grid points
 
-    /* Parallel loop using OpenMP */
-    #pragma omp parallel for shared(corrmax, iloc, itime) private(ip, is, stkmax, stk0p, stk0s, kmax, k, j)
-    for (i = 0; i < nxyz; i++) {  // Loop over all grid points in the correlation matrix
-        printf("\b\b\b\b\b%3ld %%", (100 * i) / (nxyz - 2));  // Display progress
-        stkmax = -1.0;  // Reset the maximum stacking value
-        kmax = 0;  // Reset the maximum sample index
 
-        /* Loop over all samples */
+        printf("\b\b\b\b\b%3ld %%", (100 * iter++) / (nxyz - 2));
+
+        //compute distance and depth from the reference 0,0 knowing nx, ny, nz
+
+        depth = //read from the grid i created
+        distance = //read from the grid i created
+
+
+        // Find the closest traveltime position to the distance/depth value in the travel time lookup table
+        // compare the 2D distances with 3D distances and find the position on the 2D grid of the most similar values
+        // do the same with the depth 
+
+        closest_tt = 
+
+
+        stkmax = -1.0;  // Reset for each new grid point
+        kmax = 0;
+
+        
+        // Iterate over the samples
         for (k = 0; k < nsamples; k++) {
-            stk0p = 0.0;  // Reset the stacking value for P-wave
-            stk0s = 0.0;  // Reset the stacking value for S-wave
+            stk0p = 0.0;
+            stk0s = 0.0;
 
-            /* Loop over all stations */
+            // Loop over stations and calculate stack contributions
             for (j = 0; j < nsta; j++) {
-                // Map `i` to cylindrical symmetry indices for P and S-wave sample indices
-                long int ix = i % nx;  // X index in cylindrical coordinate system
-                long int iz = i / nx;  // Z index in cylindrical coordinate system
-
-                ip = itp[ix + iz * nx];  // Get the P-wave sample index based on cylindrical grid
-                is = its[ix + iz * nx];  // Get the S-wave sample index based on cylindrical grid
-
-                if (is < nsamples) {  // If sample index is within valid range
-                    stk0p += stalta_p[j][ip];  // Add the P-wave value
-                    stk0s += stalta_s[j][is];  // Add the S-wave value
+                ip = itp[closest_tt] + k;  // access the traveltime (P)
+                is = its[closest_tt] + k;  // access the traveltime (s)
+                
+                if (ip < nsamples && is < nsamples) {
+                    stk0p += stalta_p[j][ip];  // STACK P
+                    stk0s += stalta_s[j][is];  // STACK S
+                } else {
+                    stk0p = 0.0;
+                    stk0s = 0.0;
                 }
             }
 
-            /* Update the maximum stacking value if necessary */
+            // If the product of stacks is greater than the current max, update it
             if (stk0p * stk0s > stkmax) {
-                stkmax = stk0p * stk0s;  // Update max stacking value
-                kmax = k;  // Update the corresponding sample index
+                stkmax = stk0p * stk0s;
+                kmax = k;  // Store the index corresponding to the max stack value
             }
-        }
 
-        /* Store the correlation value for the current grid point in the correlation matrix */
-        corrmatrix[i] = sqrt(stkmax) / ((float) nsta);
 
-        /* Critical section to update the overall maximum correlation */
+            // Store the coherence in the 3D grid position
+        corrmatrix[w] = sqrt(stkmax) / ((float) nsta);
+
         #pragma omp critical
-        if (corrmatrix[i] > corrmax) {
-            corrmax = corrmatrix[i];  // Update the maximum correlation value
-            *iloc = i;  // Update the location index
-            *itime = kmax;  // Update the time index
-        }
+        if (corrmatrix[w] > corrmax) {
+            corrmax = corrmatrix[i];
+            *iloc = w;
+            *itime = kmax;
+        }    
+    }
+
     }
 
     printf("\n ------ Event located ------ \n");  // Print completion message
-    return 0;  // Return success
+
+    return 0; // Return success
 }

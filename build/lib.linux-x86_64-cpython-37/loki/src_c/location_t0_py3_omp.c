@@ -54,40 +54,23 @@ static PyObject *py_stacking(PyObject *self, PyObject *args) {
         return NULL;
     }
 
-    /* Verify dimensionality of input arrays */
-    if (PyArray_NDIM(stalta_p) != 2) {
-        PyErr_SetString(PyExc_RuntimeError, "stalta_p is not a 2D array");
-        return NULL;
-    }
-    if (PyArray_NDIM(stalta_s) != 2) {
-        PyErr_SetString(PyExc_RuntimeError, "stalta_s is not a 2D array");
-        return NULL;
-    }
-    if (PyArray_NDIM(itp) != 2 || PyArray_DIM(itp, 1) != 1 || PyArray_NDIM(its) != 2 || PyArray_DIM(its, 1) != 1) {
-        PyErr_SetString(PyExc_RuntimeError, "itp and its must be 2D arrays with a second dimension of size 1");
-        return NULL;
-    }
-
     /* Get dimensions from input arrays */
     nsta = (long int) PyArray_DIM(stalta_p, 0);  // Number of stations
     nsamples = (long int) PyArray_DIM(stalta_p, 1);  // Number of samples per station
     
-    nxz = nx*nz; 
+    nxz = nx * nz; 
     nxyz = nx * nx * nz;  // Total number of grid points in 3D space
 
     /* Allocate memory for the correlation matrix */
     dims[0] = nxyz;  // Set dimension of correlation matrix array
     corrmatrix = (PyArrayObject*) PyArray_SimpleNew(1, dims, NPY_DOUBLE);  // Create 1D NumPy array for the correlation matrix
 
-    /* Convert itp and its to 1D arrays (flatten the 2D arrays) */
-    int *itp_flat = (int*) PyArray_DATA(itp);  // Extract data as 1D array
-    int *its_flat = (int*) PyArray_DATA(its);  // Extract data as 1D array
-
     /* Call the stacking function */
-    if (stacking(nx, nz, nxz, nxyz, nsta, nsamples, itp_flat, its_flat, 
-                 (double (*)[nsamples]) PyArray_DATA(stalta_p), 
-                 (double (*)[nsamples]) PyArray_DATA(stalta_s), 
-                 (double*) PyArray_DATA(corrmatrix), &iloc, &itime, nproc) != 0) {
+    if (stacking(nx, nz, nxz, nxyz, nsta, nsamples, 
+                (int*) PyArray_DATA(itp), (int*) PyArray_DATA(its), 
+                (double (*)[nsamples]) PyArray_DATA(stalta_p), 
+                (double (*)[nsamples]) PyArray_DATA(stalta_s), 
+                (double*) PyArray_DATA(corrmatrix), &iloc, &itime, nproc) != 0) {
         PyErr_SetString(PyExc_RuntimeError, "Running stacking failed.");
         return NULL;  // Return error if stacking function fails
     }
@@ -96,11 +79,6 @@ static PyObject *py_stacking(PyObject *self, PyObject *args) {
     PyObject *iloctime = Py_BuildValue("(l,l)", iloc, itime);  // Build tuple with location and time
     PyObject *cohermat = Py_BuildValue("O", corrmatrix);  // Build Python object for the correlation matrix
     PyObject *locres = Py_BuildValue("(OO)", iloctime, cohermat);  // Bundle location and matrix into a tuple
-
-    /* Clean up references */
-    Py_DECREF(iloctime);  // Decrement reference count of iloctime
-    Py_DECREF(cohermat);  // Decrement reference count of cohermat
-    Py_DECREF(corrmatrix);  // Decrement reference count of corrmatrix
 
     return locres;  // Return the results as a Python tuple
 }
@@ -130,66 +108,74 @@ PyMODINIT_FUNC PyInit_location_t0(void) {
     return m;  // Return the initialized module
 }
 
-/* Core stacking function with cylindrical symmetry mapping */
+/* Stacking Function */
 int stacking(long int nx, long int nz, long int nxz, long int nxyz, long int nsta, long int nsamples, 
-             int itp[nxz], int its[nxz], double stalta_p[nsta][nsamples], 
-             double stalta_s[nsta][nsamples], double corrmatrix[nxyz], 
-             long int *iloc, long int *itime, int nproc) {
-
-    long int i, j, k, kmax;
+             int itp[nxz], int its[nxz], double stalta_p[nsta][nsamples], double stalta_s[nsta][nsamples], 
+             double corrmatrix[nxyz], long int *iloc, long int *itime, int nproc) {
+    
+    long int iter = 0, i, j, k, w, kmax;
     int ip, is;
-    double stk0p, stk0s, stkmax, corrmax;
-    corrmax = -1.0;  // Initialize correlation maximum to a very low value
+    double stk0p, stk0s, stkmax;
+    
+    // Set OpenMP threads
+    omp_set_num_threads(nproc);
+    
+    // Initialize tracking variables
+    double corrmax = -1.0;
+    
+    printf("Location process complete at: %3d %%", 0);
+    
+    #pragma omp parallel for shared(iter, corrmax, iloc, itime) private(ip, is, stkmax, stk0p, stk0s, kmax, k, j)
+   
+    for (w = 0; w < nxyz; w++) {  // Loop over the 3D location grid points
 
-    omp_set_num_threads(nproc);  // Set the number of OpenMP threads
-    printf("Location process complete at : %3d %%", 0);  // Print the starting point
+        // Loop over the 2D travel time lookup tables
+        for (i = 0; i < nxz; i++) {
+            // Printing progress
+            printf("\b\b\b\b\b%3ld %%", (100 * iter++) / (nxyz - 2));
 
-    /* Parallel loop using OpenMP */
-    #pragma omp parallel for shared(corrmax, iloc, itime) private(ip, is, stkmax, stk0p, stk0s, kmax, k, j)
-    for (i = 0; i < nxyz; i++) {  // Loop over all grid points in the correlation matrix
-        printf("\b\b\b\b\b%3ld %%", (100 * i) / (nxyz - 2));  // Display progress
-        stkmax = -1.0;  // Reset the maximum stacking value
-        kmax = 0;  // Reset the maximum sample index
+            stkmax = -1.0;  // Reset for each new grid point
+            kmax = 0;
 
-        /* Loop over all samples */
-        for (k = 0; k < nsamples; k++) {
-            stk0p = 0.0;  // Reset the stacking value for P-wave
-            stk0s = 0.0;  // Reset the stacking value for S-wave
+            // Iterate over the samples
+            for (k = 0; k < nsamples; k++) {
+                stk0p = 0.0;
+                stk0s = 0.0;
 
-            /* Loop over all stations */
-            for (j = 0; j < nsta; j++) {
-                // Map `i` to cylindrical symmetry indices for P and S-wave sample indices
-                long int ix = i % nx;  // X index in cylindrical coordinate system
-                long int iz = i / nx;  // Z index in cylindrical coordinate system
+                // Loop over stations and calculate stack contributions
+                for (j = 0; j < nsta; j++) {
+                    ip = itp[i] + k;  // Just access directly as 1D arrays
+                    is = its[i] + k;  // Just access directly as 1D arrays
+                   
+                    if (ip < nsamples && is < nsamples) {
+                        stk0p += stalta_p[j][ip];  // Add positive travel time
+                        stk0s += stalta_s[j][is];  // Add negative travel time
+                    } else {
+                        stk0p = 0.0;
+                        stk0s = 0.0;
+                    }
+                }
 
-                ip = itp[ix + iz * nx];  // Get the P-wave sample index based on cylindrical grid
-                is = its[ix + iz * nx];  // Get the S-wave sample index based on cylindrical grid
-
-                if (is < nsamples) {  // If sample index is within valid range
-                    stk0p += stalta_p[j][ip];  // Add the P-wave value
-                    stk0s += stalta_s[j][is];  // Add the S-wave value
+                // If the product of stacks is greater than the current max, update it
+                if (stk0p * stk0s > stkmax) {
+                    stkmax = stk0p * stk0s;
+                    kmax = k;  // Store the index corresponding to the max stack value
                 }
             }
 
-            /* Update the maximum stacking value if necessary */
-            if (stk0p * stk0s > stkmax) {
-                stkmax = stk0p * stk0s;  // Update max stacking value
-                kmax = k;  // Update the corresponding sample index
+            // Store the result in the correct position in the correlation matrix
+            corrmatrix[i] = sqrt(stkmax) / ((float) nsta);
+
+            #pragma omp critical
+            if (corrmatrix[i] > corrmax) {
+                corrmax = corrmatrix[i];
+                *iloc = i;
+                *itime = kmax;
             }
-        }
-
-        /* Store the correlation value for the current grid point in the correlation matrix */
-        corrmatrix[i] = sqrt(stkmax) / ((float) nsta);
-
-        /* Critical section to update the overall maximum correlation */
-        #pragma omp critical
-        if (corrmatrix[i] > corrmax) {
-            corrmax = corrmatrix[i];  // Update the maximum correlation value
-            *iloc = i;  // Update the location index
-            *itime = kmax;  // Update the time index
         }
     }
 
     printf("\n ------ Event located ------ \n");  // Print completion message
-    return 0;  // Return success
+
+    return 0; // Return success
 }
