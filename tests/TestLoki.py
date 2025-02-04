@@ -11,6 +11,8 @@ db_path = './Test_dataset/Traveltimes'
 data_path = './Test_dataset/Data'
 output_path = './Test_dataset/output'
 hdr_filename = 'header.hdr'
+geometry_filename_fiber = 
+geometry_filename_stat
 inputs = {}
 inputs['tshortp_min'] = 0.1
 inputs['tshortp_max'] = 0.1

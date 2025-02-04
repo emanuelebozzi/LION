@@ -4,6 +4,7 @@ import math
 import numpy as num
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
+import matplotlib.pyplot as plt
 import datetime
 import copy
 import gc
@@ -12,6 +13,7 @@ from loki import traveltimes
 from loki import waveforms
 from loki import stacktraces
 from loki import latlon2cart
+from loki import location_to_py
 import tt_processing                       # C
 import location_t0                         # C  for multiplying the P- and S-stacking values using this
 #import location_t0_plus                   # C  for adding the P- and S-stacking values using this
@@ -92,22 +94,20 @@ class Loki:
 
         # Synthetic Traveltimes and metadata generated with NonLinLoc and 2D 
 
+
+
         tobj = traveltimes.Traveltimes(self.db_path, self.hdr_filename, self.geometry_filename)
 
-        #print('The traveltime object is:', tobj)
-
-        #attributes = [name for name in dir(tobj) if not callable(getattr(tobj, name)) and not name.startswith("__")]
-        #methods = [name for name in dir(tobj) if callable(getattr(tobj, name)) and not name.startswith("__")]
-
-        #print("Attributes tobj:", attributes)
-        #print("Methods tobj:", methods)
-
-        #load the traveltimes
 
         tp = tobj.load_traveltimes('P', model, precision) 
         ts = tobj.load_traveltimes('S', model, precision)
 
-        
+        #load id of stations, channels and their location 
+    
+        tobj.load_station_info()
+        tobj.load_channel_info()
+
+
         #for each event 
 
         for event_path in self.data_tree:
@@ -118,21 +118,10 @@ class Loki:
 
             wobj = waveforms.Waveforms(tobj=tobj, data_path = data_path, event_path=event_path, extension_sta="*", extension_das='CANDAS2_2023-01-07_10-48-10.h5', freq=None)
 
-            #print('The waveforms object is:', wobj)
-
-            #attributes = [name for name in dir(wobj) if not callable(getattr(wobj, name)) and not name.startswith("__")]
-            #methods = [name for name in dir(wobj) if callable(getattr(wobj, name)) and not name.startswith("__")]
-
-            #print("Attributes wobj:", attributes)
-            #print("Methods wobj:", methods)
-            print('The stream DAS is:', wobj.stream_das)
-            print('The stream station is:', wobj.stream_sta)
 
             #object of the class stacktraces  
 
             sobj = stacktraces.Stacktraces(tobj, wobj, **inputs)
-
-
 
 
             event = event_path.split('/')[-1]
@@ -148,8 +137,8 @@ class Loki:
             tpxz=tp['HM01'].reshape(tobj.nxz, 1)
             tsxz=ts['HM01'].reshape(tobj.nxz, 1)
 
-            print('tpxz:', tpxz, tpxz.shape, tpxz.dtype)
-            print('tsxz:', tsxz, tsxz.shape, tsxz.dtype)
+            print('tpxz:',  tpxz.shape, tpxz.dtype)
+            print('tsxz:',  tsxz.shape, tsxz.dtype)
 
 
             tpxz = num.asarray(tpxz, dtype=num.float64)
@@ -163,15 +152,13 @@ class Loki:
             print('sobj.deltat_das', sobj.deltat_das)
             ########################################
 
-
-
             tp_mod_sta, ts_mod_sta = tt_processing.tt_f2i(sobj.deltat_sta, tp_modse, ts_modse, npr)  # traveltime table in time sample, for each imaging point traveltimes have substracted the minimal P traveltime
             tp_mod_das, ts_mod_das = tt_processing.tt_f2i(sobj.deltat_das, tp_modse, ts_modse, npr)  # traveltime table in time sample, for each imaging point traveltimes have substracted the minimal P traveltime
 
 
+
+
 # %%
-
-
             cmax_pre = -1.0
             for i in range(ntrial):
                 if STALTA:
@@ -213,11 +200,7 @@ class Loki:
                         datainfo['channel_name'] = 'CFS'  # note maximum three characters, the last one must be 'S'
                         ioformatting.vector2trace(datainfo, obs_dataS_das[ista,:], self.output_path+'/'+event+'/cf/trial{}'.format(i))
 
-                ######## modify 3D>>2D ##############
-
-
-                import matplotlib.pyplot as plt
-                import numpy as np
+                ######## pre-location plots ##############
 
                 # Save the observed P-wave data for STA (Station)
                 # Assuming obs_dataP_sta is the data with shape (6591, 8000)
@@ -270,9 +253,7 @@ class Loki:
                 plt.savefig('observed_p_wave_das.png')  # Save the plot to a file
                 plt.close()  # Close the plot to free up memory
 
-
                 ############ 
-
 
                 print("tp_mod_sta shape:", tp_mod_sta.shape)
                 print("ts_mod_sta shape:", ts_mod_sta.shape)
@@ -280,66 +261,13 @@ class Loki:
                 print("obs_dataS_sta shape:", obs_dataS_sta.shape)
                 print("npr:", npr)
 
-                def validate_input_array(arr, name):
-                    """ Validates that an array contains valid numeric values (no NaN, Inf, negative values). """
-                    if isinstance(arr, num.ndarray):
-                        # If it's a NumPy array, check for NaN or Inf values
-                        if num.any(num.isnan(arr)) or num.any(num.isinf(arr)):
-                            print(f"Error: {name} contains invalid value (NaN or Inf).")
-                            return False
-                        if num.any(arr < 0):
-                            print(f"Error: {name} contains negative value.")
-                            return False
-                    elif isinstance(arr, list):
-                        # If it's a Python list, iterate through it and validate
-                        for row in arr:
-                            if not isinstance(row, list):
-                                print(f"Error: {name} contains non-list elements.")
-                                return False
-                            for val in row:
-                                if math.isnan(val) or math.isinf(val):
-                                    print(f"Error: {name} contains invalid value (NaN or Inf): {val}")
-                                    return False
-                                if val < 0:
-                                    print(f"Error: {name} contains negative value: {val}")
-                                    return False
-                    else:
-                        print(f"Error: {name} is neither a NumPy array nor a list.")
-                        return False
-                    return True
 
-                def validate_npr(npr):
-                    """ Validates that `npr` is a valid number. """
-                    if not isinstance(npr, (int, float)):
-                        print("Error: npr should be a number.")
-                        return False
-                    if npr <= 0:
-                        print(f"Error: npr should be positive, but got {npr}.")
-                        return False
-                    return True
+                location_t0 = location_t0_py.WaveformStacking(tobj, nproc, nx, nz, dx, dz)
 
 
-                # Validate the inputs
-                if validate_input_array(tp_mod_sta, "tp_mod_sta") and \
-                validate_input_array(ts_mod_sta, "ts_mod_sta") and \
-                validate_input_array(obs_dataP_sta, "obs_dataP_sta") and \
-                validate_input_array(obs_dataS_sta, "obs_dataS_sta") and \
-                validate_npr(npr):
-
-                    print('good, i am locating now')
-                    print('tobj.nx', tobj.nx)
-                    print('tobj.nz', tobj.nz)
-
-                    tp_mod_sta = num.ascontiguousarray(tp_mod_sta)
-                    ts_mod_sta = num.ascontiguousarray(ts_mod_sta)
-                    obs_dataP_sta = num.ascontiguousarray(obs_dataP_sta)
-                    obs_dataS_sta = num.ascontiguousarray(obs_dataS_sta)
-                    
-
-                    # Proceed with the computation if all validations pass
-                    iloctime_sta, corrmatrix_sta = location_t0.stacking(tobj.nx, tobj.nz, tp_mod_sta, ts_mod_sta, obs_dataP_sta, obs_dataS_sta, npr)
-                    iloctime_das, corrmatrix_das = location_t0.stacking(tp_mod_das, ts_mod_das, obs_dataP_das[0:50, :], obs_dataS_das[0:50, :], npr)  # iloptime_das[0]: grid index; iloptime_das[1]: time index
-
+                iloctime_sta, corrmatrix_sta = location_t0.stacking(tobj.nx, tobj.nz, tp_mod_sta, ts_mod_sta, obs_dataP_sta, obs_dataS_sta, npr)
+                iloctime_das, corrmatrix_das = location_t0.stacking(tp_mod_das, ts_mod_das, obs_dataP_das[0:50, :], obs_dataS_das[0:50, :], npr)  # iloptime_das[0]: grid index; iloptime_das[1]: time index
+ 
                 
                 else:
                     print("Error: One or more inputs are invalid. Computation skipped.")

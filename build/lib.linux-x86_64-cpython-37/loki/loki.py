@@ -4,6 +4,7 @@ import math
 import numpy as num
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
+import matplotlib.pyplot as plt
 import datetime
 import copy
 import gc
@@ -92,17 +93,11 @@ class Loki:
 
         # Synthetic Traveltimes and metadata generated with NonLinLoc and 2D 
 
+
+
         tobj = traveltimes.Traveltimes(self.db_path, self.hdr_filename, self.geometry_filename)
 
-        #print('The traveltime object is:', tobj)
 
-        #attributes = [name for name in dir(tobj) if not callable(getattr(tobj, name)) and not name.startswith("__")]
-        #methods = [name for name in dir(tobj) if callable(getattr(tobj, name)) and not name.startswith("__")]
-
-        #print("Attributes tobj:", attributes)
-        #print("Methods tobj:", methods)
-
-        #load the traveltimes
 
         tp = tobj.load_traveltimes('P', model, precision) 
         ts = tobj.load_traveltimes('S', model, precision)
@@ -118,21 +113,10 @@ class Loki:
 
             wobj = waveforms.Waveforms(tobj=tobj, data_path = data_path, event_path=event_path, extension_sta="*", extension_das='CANDAS2_2023-01-07_10-48-10.h5', freq=None)
 
-            #print('The waveforms object is:', wobj)
-
-            #attributes = [name for name in dir(wobj) if not callable(getattr(wobj, name)) and not name.startswith("__")]
-            #methods = [name for name in dir(wobj) if callable(getattr(wobj, name)) and not name.startswith("__")]
-
-            #print("Attributes wobj:", attributes)
-            #print("Methods wobj:", methods)
-            print('The stream DAS is:', wobj.stream_das)
-            print('The stream station is:', wobj.stream_sta)
 
             #object of the class stacktraces  
 
             sobj = stacktraces.Stacktraces(tobj, wobj, **inputs)
-
-
 
 
             event = event_path.split('/')[-1]
@@ -148,8 +132,8 @@ class Loki:
             tpxz=tp['HM01'].reshape(tobj.nxz, 1)
             tsxz=ts['HM01'].reshape(tobj.nxz, 1)
 
-            print('tpxz:', tpxz, tpxz.shape, tpxz.dtype)
-            print('tsxz:', tsxz, tsxz.shape, tsxz.dtype)
+            print('tpxz:',  tpxz.shape, tpxz.dtype)
+            print('tsxz:',  tsxz.shape, tsxz.dtype)
 
 
             tpxz = num.asarray(tpxz, dtype=num.float64)
@@ -163,15 +147,11 @@ class Loki:
             print('sobj.deltat_das', sobj.deltat_das)
             ########################################
 
-
-
             tp_mod_sta, ts_mod_sta = tt_processing.tt_f2i(sobj.deltat_sta, tp_modse, ts_modse, npr)  # traveltime table in time sample, for each imaging point traveltimes have substracted the minimal P traveltime
             tp_mod_das, ts_mod_das = tt_processing.tt_f2i(sobj.deltat_das, tp_modse, ts_modse, npr)  # traveltime table in time sample, for each imaging point traveltimes have substracted the minimal P traveltime
 
 
 # %%
-
-
             cmax_pre = -1.0
             for i in range(ntrial):
                 if STALTA:
@@ -213,11 +193,7 @@ class Loki:
                         datainfo['channel_name'] = 'CFS'  # note maximum three characters, the last one must be 'S'
                         ioformatting.vector2trace(datainfo, obs_dataS_das[ista,:], self.output_path+'/'+event+'/cf/trial{}'.format(i))
 
-                ######## modify 3D>>2D ##############
-
-
-                import matplotlib.pyplot as plt
-                import numpy as np
+                ######## pre-location plots ##############
 
                 # Save the observed P-wave data for STA (Station)
                 # Assuming obs_dataP_sta is the data with shape (6591, 8000)
@@ -326,15 +302,9 @@ class Loki:
                 validate_input_array(obs_dataS_sta, "obs_dataS_sta") and \
                 validate_npr(npr):
 
-                    print('good, i am locating now')
-                    print('tobj.nx', tobj.nx)
-                    print('tobj.nz', tobj.nz)
+                    print('good, i have done my checks on the input, i am locating now')
 
-                    tp_mod_sta = num.ascontiguousarray(tp_mod_sta)
-                    ts_mod_sta = num.ascontiguousarray(ts_mod_sta)
-                    obs_dataP_sta = num.ascontiguousarray(obs_dataP_sta)
-                    obs_dataS_sta = num.ascontiguousarray(obs_dataS_sta)
-                    
+
 
                     # Proceed with the computation if all validations pass
                     iloctime_sta, corrmatrix_sta = location_t0.stacking(tobj.nx, tobj.nz, tp_mod_sta, ts_mod_sta, obs_dataP_sta, obs_dataS_sta, npr)

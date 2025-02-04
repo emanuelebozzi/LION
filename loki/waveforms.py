@@ -40,9 +40,9 @@ class Waveforms:
 
     #calle methods (in order)
 
-    def load_sta_waveforms(self, event_path, extension_sta, comps, freq):
+    def load_sta_waveforms(self, tobj, event_path, extension_sta, comps, freq):
 
- 
+        id_stations = tobj.db_stations
         files=os.path.join(event_path,extension_sta)
 
         print('Loading station event: ' + str(files))
@@ -69,7 +69,7 @@ class Waveforms:
 
 
     def load_das_waveforms(self, data_path, extension_das,tobj, freq):
-        id_das_stations = tobj.id_das_stations
+        id_das_stations = tobj.db_channels
         delta_das =  tobj.delta_das
         #read the events in .h5 format 
         files=os.path.join(data_path,extension_das)
@@ -105,23 +105,17 @@ class Waveforms:
 
         for i in range(0, len(id_das_stations)-6):
             
-            #print(data.shape)
-            #print(i)
-            #print(len(id_das_stations))
-            #print(id_das_stations[i])
 
             trace = Trace(data=data[id_das_stations[i], :])  # Use `row` directly
             trace.stats.delta = delta_das
-            #starttime = list(self.stream_sta.values())[0].stats.starttime
-            #trace.stats.starttime = starttime
             trace.stats.starttime = UTCDateTime("2025-01-01T00:00:00")
             trace.stats.station = str(id_das_stations[i])  # Unique station name for each trace
             trace.stats.channel = "E"  # Same channel for all traces
-            
-            # Add the trace to the Stream
             self.stream_das.append(trace)
 
             #print('the DAS stream is: ', self.stream_das)
+
+
 
     def station_list(self):
         data_stalist=[]

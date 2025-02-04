@@ -1,181 +1,187 @@
-#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION  // Prevent using deprecated NumPy API
-#include <Python.h>  // Include Python header for Python C-API integration
-#include <numpy/arrayobject.h>  // Include NumPy header for array handling
-#include <math.h>  // For mathematical functions (e.g., sqrt)
-#include <stdio.h>  // For standard input/output functions
-#include <stdlib.h>  // For standard library functions (e.g., malloc, free)
-#include <omp.h>  // For OpenMP (parallel processing)
-
-/* Ensure max and min macros are defined */
+#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
+#include <Python.h>
+#include <numpy/arrayobject.h>
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <omp.h>
 #ifndef max
-    #define max( a, b ) ( ((a) > (b)) ? (a) : (b) )  // Define max macro if not already defined
+	#define max( a, b ) ( ((a) > (b)) ? (a) : (b) )
 #endif
 #ifndef min
-    #define min( a, b ) ( ((a) < (b)) ? (a) : (b) )  // Define min macro if not already defined
+	#define min( a, b ) ( ((a) < (b)) ? (a) : (b) )
 #endif
 
-/* Function prototype for the core stacking function */
-int stacking(long int nx, long int nz, long int nxz, long int nxyz, long int nsta, long int nsamples, 
-             int itp[nxz], int its[nxz], double stalta_p[nsta][nsamples], 
-             double stalta_s[nsta][nsamples], double corrmatrix[nxyz], 
-             long int *iloc, long int *itime, int nproc);
 
-/* Python module documentation */
-static char module_docstring[] = "Module for computing the location";  // Description for the module
-static char stacking_docstring[] = "Location through waveform stacking";  // Description for the stacking function
+/* Prototypes */
+int stacking(long int nxyz, long int nsta, long int nsamples, int itp[nxyz][nsta], int its[nxyz][nsta], double stalta_p[nsta][nsamples], double stalta_s[nsta][nsamples], double corrmatrix[nxyz],long int *iloc,long int *itime, int nproc);
+/* Python wrapper of the C function stacking */
 
-/* Python wrapper function for the core stacking function */
-static PyObject *py_stacking(PyObject *self, PyObject *args) {
-    PyArrayObject *itp, *its, *stalta_p, *stalta_s, *corrmatrix;
-    long int nx, nz, nxz, nxyz, nsamples, nsta, nproc;
-    long int iloc, itime;
-    npy_intp dims[1];  // Array to store dimensions of the correlation matrix
+static char module_docstring[]="Module for computing of the location";
+static char stacking_docstring[]="location throug waveform stacking";
 
-    if (!PyArg_ParseTuple(args, "iiOOOOi", &nx, &nz, &itp, &its, &stalta_p, &stalta_s, &nproc)) {
-        PyErr_SetString(PyExc_RuntimeError, "Invalid arguments for the C function stacking");
-        return NULL;
-    }
 
-    /* Ensure arrays are contiguous in memory */
-    if (!PyArray_Check(stalta_p) || !PyArray_ISCONTIGUOUS(stalta_p)) {
-        PyErr_SetString(PyExc_RuntimeError, "stalta_p is not a contiguous array");
-        return NULL;
-    }
-    if (!PyArray_Check(stalta_s) || !PyArray_ISCONTIGUOUS(stalta_s)) {
-        PyErr_SetString(PyExc_RuntimeError, "stalta_s is not a contiguous array");
-        return NULL;
-    }
-    if (!PyArray_Check(itp) || !PyArray_ISCONTIGUOUS(itp)) {
-        PyErr_SetString(PyExc_RuntimeError, "itp is not a contiguous array");
-        return NULL;
-    }
-    if (!PyArray_Check(its) || !PyArray_ISCONTIGUOUS(its)) {
-        PyErr_SetString(PyExc_RuntimeError, "its is not a contiguous array");
-        return NULL;
-    }
+/* wrapper */
 
-    /* Get dimensions from input arrays */
-    nsta = (long int) PyArray_DIM(stalta_p, 0);  // Number of stations
-    nsamples = (long int) PyArray_DIM(stalta_p, 1);  // Number of samples per station
-    
-    nxz = nx * nz; 
-    nxyz = nx * nx * nz;  // Total number of grid points in 3D space
+static PyObject *py_stacking(PyObject *self, PyObject *args){
+   PyArrayObject *itp, *its, *stalta_p, *stalta_s, *corrmatrix;
+   long int nxyz, nsamples, nsta, nproc;
+	 long int iloc, itime;
+   npy_intp dims[1];
+   /* checking the format of the arguments */
 
-    /* Allocate memory for the correlation matrix */
-    dims[0] = nxyz;  // Set dimension of correlation matrix array
-    corrmatrix = (PyArrayObject*) PyArray_SimpleNew(1, dims, NPY_DOUBLE);  // Create 1D NumPy array for the correlation matrix
+   if(!PyArg_ParseTuple(args, "OOOOi", &itp, &its, &stalta_p, &stalta_s, &nproc)){
+      PyErr_SetString(PyExc_RuntimeError, "Invalid arguments for the C function stacking");
+      return NULL;
+   }
 
-    /* Call the stacking function */
-    if (stacking(nx, nz, nxz, nxyz, nsta, nsamples, 
-                (int*) PyArray_DATA(itp), (int*) PyArray_DATA(its), 
-                (double (*)[nsamples]) PyArray_DATA(stalta_p), 
-                (double (*)[nsamples]) PyArray_DATA(stalta_s), 
-                (double*) PyArray_DATA(corrmatrix), &iloc, &itime, nproc) != 0) {
-        PyErr_SetString(PyExc_RuntimeError, "Running stacking failed.");
-        return NULL;  // Return error if stacking function fails
-    }
+   /* Checking the contiguity of the arrays */
 
-    /* Prepare output Python objects */
-    PyObject *iloctime = Py_BuildValue("(l,l)", iloc, itime);  // Build tuple with location and time
-    PyObject *cohermat = Py_BuildValue("O", corrmatrix);  // Build Python object for the correlation matrix
-    PyObject *locres = Py_BuildValue("(OO)", iloctime, cohermat);  // Bundle location and matrix into a tuple
+   if(!PyArray_Check(stalta_p) || !PyArray_ISCONTIGUOUS(stalta_p)){
+      PyErr_SetString(PyExc_RuntimeError, "stalta_p is not a contiguous array");
+      return NULL;
+   }
 
-    return locres;  // Return the results as a Python tuple
+   if(!PyArray_Check(stalta_s) || !PyArray_ISCONTIGUOUS(stalta_s)){
+      PyErr_SetString(PyExc_RuntimeError, "stalta_s is not a contiguous array");
+      return NULL;
+   }
+
+   if(!PyArray_Check(itp) || !PyArray_ISCONTIGUOUS(itp)){
+      PyErr_SetString(PyExc_RuntimeError, "tp is not a contiguous array");
+      return NULL;
+   }
+
+   if(!PyArray_Check(its) || !PyArray_ISCONTIGUOUS(its)){
+      PyErr_SetString(PyExc_RuntimeError, "ts is not a contiguous array");
+      return NULL;
+   }
+
+
+
+   /* Checking that obs_data and stalta are the same type of array and with the same dimensions */
+
+   if((PyArray_NDIM(stalta_p) != 2)){
+      PyErr_SetString(PyExc_RuntimeError, "stalta_p is not a 2D array");
+      return NULL;
+   }
+
+   if((PyArray_NDIM(stalta_s) != 2)){
+      PyErr_SetString(PyExc_RuntimeError, "stalta_s is not a 2D array");
+      return NULL;
+   }
+
+   if((PyArray_NDIM(itp) != 2)){
+      PyErr_SetString(PyExc_RuntimeError, "tp is not a 2D array");
+      return NULL;
+   }
+
+   if((PyArray_NDIM(its) != 2)){
+      PyErr_SetString(PyExc_RuntimeError, "ts is not a 2D array");
+      return NULL;
+   }
+
+   /* find the dimension of obs_data and stalta */
+   nsta=(long int) PyArray_DIM(stalta_p, 0);
+   nsamples=(long int) PyArray_DIM(stalta_p, 1);
+   nxyz=(long int) PyArray_DIM(itp, 0);
+   dims[0] = nxyz;
+   corrmatrix=(PyArrayObject*) PyArray_SimpleNew(1, dims, NPY_DOUBLE);
+
+   /*call stacking */
+   if (0 != stacking(nxyz, nsta, nsamples, PyArray_DATA(itp), PyArray_DATA(its), PyArray_DATA(stalta_p), PyArray_DATA(stalta_s), PyArray_DATA(corrmatrix), &iloc, &itime, nproc)) {
+      PyErr_SetString(PyExc_RuntimeError, "running stacking failed.");
+      return NULL;
+   }
+
+	 PyObject *iloctime =Py_BuildValue("(i,i)", iloc, itime);
+	 /*Py_DECREF(&iloc);*/
+	 /*Py_DECREF(&itime);*/
+     
+	 PyObject *cohermat=Py_BuildValue("O",corrmatrix);
+	 Py_DECREF(corrmatrix);
+
+	 PyObject *locres=Py_BuildValue("OO",iloctime, cohermat);
+	 Py_DECREF(iloctime);
+	 Py_DECREF(cohermat);
+
+   return locres;
+
 }
 
-/* Module specifications and initialization */
-static PyMethodDef module_methods[] = {
-    {"stacking", py_stacking, METH_VARARGS, stacking_docstring},  // Register the stacking function
-    {NULL, NULL, 0, NULL}  // End of methods list
+
+
+/* module specifications and inizialization*/
+
+static PyMethodDef module_methods[]={
+ /* {method_name, Cfunction, argument_types, docstring} */
+    {"stacking", py_stacking, METH_VARARGS, stacking_docstring},
+    {NULL, NULL, 0, NULL}
 };
 
-/* Module definition */
 static struct PyModuleDef modlocation_t0 = {
-    PyModuleDef_HEAD_INIT,
-    "location_t0",  // Name of the module
-    module_docstring,  // Module description
-    -1,  // Size of per-interpreter state of the module, -1 means the module keeps state in global variables
-    module_methods  // List of module methods
+       PyModuleDef_HEAD_INIT,
+       "location_t0",
+       module_docstring,
+       -1,
+       module_methods
 };
 
-/* Module initialization function */
-PyMODINIT_FUNC PyInit_location_t0(void) {
+PyMODINIT_FUNC PyInit_location_t0(void){
     PyObject *m;
-    m = PyModule_Create(&modlocation_t0);  // Create the module
-    if (m == NULL)
-        return NULL;  // Return NULL if module creation fails
-    import_array();  // Initialize NumPy C-API
-    return m;  // Return the initialized module
-}
+    m = PyModule_Create(&modlocation_t0);
+    if (m==NULL)
+       return NULL;
+    import_array();
+    return m;
+};
 
-/* Stacking Function */
-int stacking(long int nx, long int nz, long int nxz, long int nxyz, long int nsta, long int nsamples, 
-             int itp[nxz], int its[nxz], double stalta_p[nsta][nsamples], double stalta_s[nsta][nsamples], 
-             double corrmatrix[nxyz], long int *iloc, long int *itime, int nproc) {
-    
-    long int iter = 0, i, j, k, w, kmax;
+
+
+int stacking(long int nxyz, long int nsta, long int nsamples, int itp[nxyz][nsta], int its[nxyz][nsta], double stalta_p[nsta][nsamples], double stalta_s[nsta][nsamples], double corrmatrix[nxyz], long int *iloc, long int *itime, int nproc){
+
+    long int iter, i, j, k, kmax;
     int ip, is;
-    double stk0p, stk0s, stkmax;
-    
-    // Set OpenMP threads
+    double stk0p, stk0s, stkmax, corrmax;
+    iter=0;
+    corrmax=-1.0;
     omp_set_num_threads(nproc);
-    
-    // Initialize tracking variables
-    double corrmax = -1.0;
-    
-    printf("Location process complete at: %3d %%", 0);
-    
-    #pragma omp parallel for shared(iter, corrmax, iloc, itime) private(ip, is, stkmax, stk0p, stk0s, kmax, k, j)
-   
-    for (w = 0; w < nxyz; w++) {  // Loop over the 3D location grid points
 
-        // Loop over the 2D travel time lookup tables
-        for (i = 0; i < nxz; i++) {
-            // Printing progress
-            printf("\b\b\b\b\b%3ld %%", (100 * iter++) / (nxyz - 2));
+    printf(" Location process complete at : %3d %%",0);
+    #pragma omp parallel for shared(iter,corrmax,iloc,itime) private(ip,is,stkmax,stk0p,stk0s,kmax,k,j)
+    for(i=0;i<nxyz;i++){
+       printf("\b\b\b\b\b%3ld %%", (100*iter++)/(nxyz-2));
+       stkmax=-1.0;
+	   kmax=0;
+       for(k=0;k<nsamples;k++){
+           stk0p=0.;
+           stk0s=0.;
+           for(j=0;j<nsta;j++){
+              ip=itp[i][j] + k;
+              is=its[i][j] + k;
+                 if (is<nsamples){
+                    stk0p=stalta_p[j][ip] + stk0p;
+                    stk0s=stalta_s[j][is] + stk0s;
+                 }
+                 else {
+                    stk0p=0. + stk0p;
+                    stk0s=0. + stk0s;
+                 }
+           }
+					 if (stk0p*stk0s>stkmax){
+						  stkmax=stk0p*stk0s;
+							kmax=k;
+					 }
+       }
+       corrmatrix[i]=sqrt(stkmax)/((float) nsta);
+       #pragma omp critical
+       if (corrmatrix[i]>corrmax){
+          corrmax=corrmatrix[i];
+          *iloc=i;
+          *itime=kmax;
+       }
 
-            stkmax = -1.0;  // Reset for each new grid point
-            kmax = 0;
-
-            // Iterate over the samples
-            for (k = 0; k < nsamples; k++) {
-                stk0p = 0.0;
-                stk0s = 0.0;
-
-                // Loop over stations and calculate stack contributions
-                for (j = 0; j < nsta; j++) {
-                    ip = itp[i] + k;  // Just access directly as 1D arrays
-                    is = its[i] + k;  // Just access directly as 1D arrays
-                   
-                    if (ip < nsamples && is < nsamples) {
-                        stk0p += stalta_p[j][ip];  // Add positive travel time
-                        stk0s += stalta_s[j][is];  // Add negative travel time
-                    } else {
-                        stk0p = 0.0;
-                        stk0s = 0.0;
-                    }
-                }
-
-                // If the product of stacks is greater than the current max, update it
-                if (stk0p * stk0s > stkmax) {
-                    stkmax = stk0p * stk0s;
-                    kmax = k;  // Store the index corresponding to the max stack value
-                }
-            }
-
-            // Store the result in the correct position in the correlation matrix
-            corrmatrix[i] = sqrt(stkmax) / ((float) nsta);
-
-            #pragma omp critical
-            if (corrmatrix[i] > corrmax) {
-                corrmax = corrmatrix[i];
-                *iloc = i;
-                *itime = kmax;
-            }
-        }
     }
-
-    printf("\n ------ Event located ------ \n");  // Print completion message
-
-    return 0; // Return success
+    printf("\n ------ Event located ------ \n");
+    return 0;
 }
