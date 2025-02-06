@@ -23,7 +23,7 @@ import matplotlib.pyplot as plt
 
 class Traveltimes:
 
-    def __init__(self, db_path, hdr_filename, geometry_filename):
+    def __init__(self, db_path, hdr_filename, geometry_filename_fiber, geometry_filename_stat):
         if not os.path.isdir(db_path):
             print('Error: data or database path do not exist')
             sys.exit()
@@ -35,8 +35,10 @@ class Traveltimes:
         self.refsta = None
         self.hdr_filename = hdr_filename
         self.load_header()
-        self.geometry_filename = geometry_filename
+        self.geometry_filename_stat = geometry_filename_stat
+        self.geometry_filename_fiber = geometry_filename_fiber
         self.load_station_info()
+        self.load_channel_info()
 
 #modify to read only two components (ny out, modify header)
 
@@ -75,7 +77,11 @@ class Traveltimes:
         #read information on the location grid and the stations 
 
         self.stations_coordinates={}
-        f = open(os.path.join(self.db_path, self.geometry_filename_stations))
+        self.db_stations = []
+        self.lon_stations = []
+        self.lat_stations = []
+        self.depth_stations = []
+        f = open(os.path.join(self.db_path, self.geometry_filename_stat))
         lines = f.readlines()  #read header info
         for line in lines:
             # Assuming the file is space or tab-delimited. Adjust delimiter as needed.
@@ -83,34 +89,41 @@ class Traveltimes:
 
             # Check if the line has at least 3 columns to avoid errors
             if len(columns) >= 4:
-                self.db_stations = str(columns[0])
-                self.lon_stations = float(columns[1])
-                self.lat_stations = float(columns[2])
-                self.depth_stations = float(columns[3])
+                self.db_stations.append(str(columns[0]))
+                self.lon_stations.append(float(columns[1]))
+                self.lat_stations.append(float(columns[2]))
+                self.depth_stations.append(float(columns[3]))
 
-                self.stations_coordinates[int(columns[0])] = (self.lon_stations, self.lat_stations, self.depth_stations)
+                self.stations_coordinates[str(columns[0])] = (self.lon_stations, self.lat_stations, self.depth_stations)
 
 
     def load_channel_info(self): 
+
+
         
         #read information on the location grid and the stations 
-
         self.channels_coordinates={}
-        f = open(os.path.join(self.db_path, self.geometry_filename_channels))
-        lines = f.readlines()  #read header info
+        self.db_channels = []
+        self.lon_channels = []
+        self.lat_channels = []
+        self.depth_channels = []
+
+        a = open(os.path.join(self.db_path, self.geometry_filename_fiber))
+        
+        lines = a.readlines()  #read header info
         for line in lines:
             # Assuming the file is space or tab-delimited. Adjust delimiter as needed.
             columns = line.strip().split()  # Removes any leading/trailing whitespace and splits by spaces
 
             # Check if the line has at least 3 columns to avoid errors
             if len(columns) >= 4:
-                self.db_channels = str(columns[0])
-                self.lon_channels = float(columns[1])
-                self.lat_channels = float(columns[2])
-                self.depth_channels = float(columns[3])
 
-                self.channels_coordinates[int(columns[0])] = (self.lon_stations, self.lat_stations, self.depth_stations)
-
+                self.db_channels.append(str(columns[0]))
+                self.lon_channels.append(float(columns[1]))
+                self.lat_channels.append(float(columns[2]))
+                self.depth_channels.append(float(columns[3]))
+                self.channels_coordinates[str(columns[0])] = (self.lon_stations, self.lat_stations, self.depth_stations)
+        
 
     def load_traveltimes(self, phase, label='layer', precision='single'):
 

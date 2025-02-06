@@ -61,9 +61,11 @@ class Stacktraces:
             deltas_das.append(trace.stats.delta)  # Sampling interval in seconds
 
         deltas_das = num.array(deltas_das)
+        print('aaaaa', deltas_das)
         ideltas_das = num.unique((deltas_das * intsamp).astype(int))
         if num.size(ideltas_das) == 1:
             self.deltat_das = deltas_das[0]
+
         else:
             raise ValueError('Error (DAS)!! All traces must have the same sampling rate')
 

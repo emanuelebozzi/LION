@@ -23,7 +23,7 @@ import matplotlib.pyplot as plt
 
 class Traveltimes:
 
-    def __init__(self, db_path, hdr_filename, geometry_filename):
+    def __init__(self, db_path, hdr_filename, geometry_filename_fiber, geometry_filename_stat):
         if not os.path.isdir(db_path):
             print('Error: data or database path do not exist')
             sys.exit()
@@ -35,8 +35,10 @@ class Traveltimes:
         self.refsta = None
         self.hdr_filename = hdr_filename
         self.load_header()
-        self.geometry_filename = geometry_filename
+        self.geometry_filename_stat = geometry_filename_stat
+        self.geometry_filename_fiber = geometry_filename_fiber
         self.load_station_info()
+        self.load_channel_info()
 
 #modify to read only two components (ny out, modify header)
 
@@ -73,29 +75,55 @@ class Traveltimes:
     def load_station_info(self): 
         
         #read information on the location grid and the stations 
-        db_stalist=[]
-        stations_coordinates={}
-        f = open(os.path.join(self.db_path, self.geometry_filename))
+
+        self.stations_coordinates={}
+        self.db_stations = []
+        self.lon_stations = []
+        self.lat_stations = []
+        self.depth_stations = []
+        f = open(os.path.join(self.db_path, self.geometry_filename_stat))
         lines = f.readlines()  #read header info
-        id_end_das = lines[0]
-        for line in lines[1:]:        
-            toks=line.split()
-            db_stalist.append(toks[0])   #list of station id
-            if len(toks)>1:
-                stations_coordinates[toks[0]]=[eval(toks[1])-self.lon0, eval(toks[2])-self.lat0, eval(toks[3])] #station coordinates converted to relative based on the location of the reference point at the beginning of the big 2D traveltime table 
+        for line in lines:
+            # Assuming the file is space or tab-delimited. Adjust delimiter as needed.
+            columns = line.strip().split()  # Removes any leading/trailing whitespace and splits by spaces
+
+            # Check if the line has at least 3 columns to avoid errors
+            if len(columns) >= 4:
+                self.db_stations.append(str(columns[0]))
+                self.lon_stations.append(float(columns[1]))
+                self.lat_stations.append(float(columns[2]))
+                self.depth_stations.append(float(columns[3]))
+
+                self.stations_coordinates[str(columns[0])] = (self.lon_stations, self.lat_stations, self.depth_stations)
+
+
+    def load_channel_info(self): 
+
+
         
-        db_stalist = [int(x) for x in db_stalist]
-        id_end_das = int(id_end_das)
+        #read information on the location grid and the stations 
+        self.channels_coordinates={}
+        self.db_channels = []
+        self.lon_channels = []
+        self.lat_channels = []
+        self.depth_channels = []
 
-        # Ensure the slicing works
-        self.id_das_stations = db_stalist[1:id_end_das]
+        a = open(os.path.join(self.db_path, self.geometry_filename_fiber))
+        
+        lines = a.readlines()  #read header info
+        for line in lines:
+            # Assuming the file is space or tab-delimited. Adjust delimiter as needed.
+            columns = line.strip().split()  # Removes any leading/trailing whitespace and splits by spaces
 
-        self.id_das_stations = db_stalist[1:id_end_das]
-        self.id_ign_stations = db_stalist[id_end_das:len(db_stalist)]
-        self.db_stations=set(db_stalist)
-        self.stations_coordinates=stations_coordinates
+            # Check if the line has at least 3 columns to avoid errors
+            if len(columns) >= 4:
 
-
+                self.db_channels.append(str(columns[0]))
+                self.lon_channels.append(float(columns[1]))
+                self.lat_channels.append(float(columns[2]))
+                self.depth_channels.append(float(columns[3]))
+                self.channels_coordinates[str(columns[0])] = (self.lon_stations, self.lat_stations, self.depth_stations)
+        
 
     def load_traveltimes(self, phase, label='layer', precision='single'):
 

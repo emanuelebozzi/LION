@@ -4,6 +4,7 @@ from datetime import datetime
 import h5py
 from scipy.signal import detrend, butter, filtfilt
 from obspy import Stream, Trace, UTCDateTime
+import numpy as num
 
 
 '''
@@ -23,7 +24,7 @@ class Waveforms:
         if not os.path.isdir(event_path):
             raise ValueError('Error: data path does not exist')
         try:
-            self.load_sta_waveforms(event_path, extension_sta, comps, freq)
+            self.load_sta_waveforms(tobj, event_path, extension_sta, comps, freq)
         except:
             raise WaveformLoadingError('Error: data (station) not read for the event: %s' %(event_path))
         self.station_list()  
@@ -31,7 +32,7 @@ class Waveforms:
         #DAS 
 
         try:
-            self.load_das_waveforms(data_path, extension_das, tobj, freq)
+            self.load_das_waveforms(tobj, data_path, extension_das, freq)
 
 
         except:
@@ -68,9 +69,11 @@ class Waveforms:
 
 
 
-    def load_das_waveforms(self, data_path, extension_das,tobj, freq):
+    def load_das_waveforms(self, tobj, data_path, extension_das, freq):
         id_das_stations = tobj.db_channels
+        print(id_das_stations[0])
         delta_das =  tobj.delta_das
+
         #read the events in .h5 format 
         files=os.path.join(data_path,extension_das)
         
@@ -91,22 +94,21 @@ class Waveforms:
 
 #utilizzare scipy
 
-        if freq:
-            for i in range(0, num_channel): 
+        #if freq:
+        for i in range(0, num_channel): 
 
-                data[i,:] = detrend(data[i,:], type='constant')
-                data[i,:] = detrend(data[i,:], type='linear')
-                b, a = butter(N=4, Wn=freq[0] if len(freq) == 1 else [freq[0], freq[1]], btype='high' if len(freq) == 1 else 'band')
-                data[i, :] = filtfilt(b, a, data[i, :])
+            data[i,:] = detrend(data[i,:], type='constant')
+            data[i,:] = detrend(data[i,:], type='linear')
+            #b, a = butter(N=4, Wn=[10, 100], btype='band')
+            #data[i, :] = filtfilt(b, a, data[i, :])
 
         #create the stream for DAS
 
         self.stream_das = Stream() 
 
-        for i in range(0, len(id_das_stations)-6):
-            
 
-            trace = Trace(data=data[id_das_stations[i], :])  # Use `row` directly
+        for i in range(0, len(num.array(id_das_stations))-6):
+            trace = Trace(data=data[int(id_das_stations[int(i)]), :])  # Use `row` directly
             trace.stats.delta = delta_das
             trace.stats.starttime = UTCDateTime("2025-01-01T00:00:00")
             trace.stats.station = str(id_das_stations[i])  # Unique station name for each trace
@@ -114,7 +116,6 @@ class Waveforms:
             self.stream_das.append(trace)
 
             #print('the DAS stream is: ', self.stream_das)
-
 
 
     def station_list(self):

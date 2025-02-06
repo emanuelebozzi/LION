@@ -119,6 +119,9 @@ PyMODINIT_FUNC PyInit_location_t0(void) {
 // key question is : are the traveltimes from NonLinLoc ordered the same way???
 
 // Struct for index, distance, and depth (both 3d and 3d)
+
+
+
 typedef struct {
     int index;
     double distance;
@@ -129,6 +132,7 @@ typedef struct {
 double calculate_distance_xyz(int x, int y, int z) {
     return sqrt(x * x + y * y + z * z);
 }
+
 
 // Function that processes the 3D location grid assigning ordered indexes, distances, depth from reference 0,0,0
 
@@ -206,7 +210,7 @@ int stacking(long int index3d, long int index2d, long int nx, long int nz, long 
     #pragma omp parallel for shared(iter, corrmax, iloc, itime) private(ip, is, stkmax, stk0p, stk0s, kmax, k, j)
    
 
-    // OUTHER LOOK OVER 3D LOCATION GRID POINTS 
+    // OUTHER LOOP OVER 3D LOCATION GRID POINTS 
 
     for (w = 0; w < nxyz; w++) {  
 
@@ -237,7 +241,7 @@ int stacking(long int index3d, long int index2d, long int nx, long int nz, long 
             // INNER LOOP FOR ALL THE STATIONS 
             // and calculate stack contributions
             for (j = 0; j < nsta; j++) {
-                ip = itp[closest_tt] + k;  // access the traveltime (P)
+                ip = itp[closest_tt] + k;  // access the traveltime (P) >> qua funzione estrazione tt data distanza e profondità >> vettore nsta che riempe dal loop esterno  
                 is = its[closest_tt] + k;  // access the traveltime (s)
                 
                 if (ip < nsamples && is < nsamples) {

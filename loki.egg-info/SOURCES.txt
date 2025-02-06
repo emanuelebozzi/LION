@@ -9,6 +9,7 @@ loki/detections.py
 loki/focmec.py
 loki/ioformatting.py
 loki/latlon2cart.py
+loki/location_t0_py.py
 loki/loki.py
 loki/magnitude.py
 loki/mod_building_3d.py

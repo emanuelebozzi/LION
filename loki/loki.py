@@ -13,7 +13,7 @@ from loki import traveltimes
 from loki import waveforms
 from loki import stacktraces
 from loki import latlon2cart
-from loki import location_to_py
+from loki import location_t0_py
 import tt_processing                       # C
 import location_t0                         # C  for multiplying the P- and S-stacking values using this
 #import location_t0_plus                   # C  for adding the P- and S-stacking values using this
@@ -22,12 +22,13 @@ import location_t0                         # C  for multiplying the P- and S-sta
 class Loki:
     """docstring for Loki"""
 
-    def __init__(self, data_path, output_path, db_path, hdr_filename, geometry_filename, mode='locator'):
+    def __init__(self, data_path, output_path, db_path, hdr_filename, geometry_filename_fiber, geometry_filename_stat, mode='locator'):
         self.data_path = data_path
         self.output_path = output_path
         self.db_path = db_path
         self.hdr_filename = hdr_filename
-        self.geometry_filename = geometry_filename
+        self.geometry_filename_stat = geometry_filename_stat
+        self.geometry_filename_fiber = geometry_filename_fiber
         if mode == 'locator':
             self.data_tree, self.events = self.location_data_struct(self.data_path, self.output_path)
         elif mode == 'detector':
@@ -95,8 +96,9 @@ class Loki:
         # Synthetic Traveltimes and metadata generated with NonLinLoc and 2D 
 
 
+        print(self.geometry_filename_fiber)
 
-        tobj = traveltimes.Traveltimes(self.db_path, self.hdr_filename, self.geometry_filename)
+        tobj = traveltimes.Traveltimes(self.db_path, self.hdr_filename, self.geometry_filename_fiber, self.geometry_filename_stat)
 
 
         tp = tobj.load_traveltimes('P', model, precision) 
@@ -261,16 +263,15 @@ class Loki:
                 print("obs_dataS_sta shape:", obs_dataS_sta.shape)
                 print("npr:", npr)
 
+                stacking = location_t0_py.WaveformStacking(tobj, npr, tp_mod_sta, ts_mod_sta, obs_dataP_sta[0:2,0:2], obs_dataS_sta[0:2,0:2], obs_dataP_das[0:2,0:2], obs_dataS_das[0:2, 0:2])
+                iloc, itime, iloctime_sta, corrmatrix_sta, corrmatrix_das, corrmatrix = stacking.locate_event()
+                 
 
-                location_t0 = location_t0_py.WaveformStacking(tobj, nproc, nx, nz, dx, dz)
-
-
-                iloctime_sta, corrmatrix_sta = location_t0.stacking(tobj.nx, tobj.nz, tp_mod_sta, ts_mod_sta, obs_dataP_sta, obs_dataS_sta, npr)
-                iloctime_das, corrmatrix_das = location_t0.stacking(tp_mod_das, ts_mod_das, obs_dataP_das[0:50, :], obs_dataS_das[0:50, :], npr)  # iloptime_das[0]: grid index; iloptime_das[1]: time index
+                #iloctime_sta, corrmatrix_sta, corrmatrix_das, corrmatrix  = location_t0.stacking(tobj, tp_mod_sta, ts_mod_sta, obs_dataP_sta, obs_dataS_sta, npr)
+                #iloctime_das, corrmatrix_das = location_t0.stacking(tobj, tp_mod_sta, ts_mod_sta, obs_dataP_das[0:50, :], obs_dataS_das[0:50, :], npr)  # iloptime_das[0]: grid index; iloptime_das[1]: time index
  
                 
-                else:
-                    print("Error: One or more inputs are invalid. Computation skipped.")
+
 
                 #iloctime_sta, corrmatrix_sta = location_t0.stacking(tp_mod_sta, ts_mod_sta, obs_dataP_sta, obs_dataS_sta, npr)  # iloctime[0]: the grid index of the maximum stacking point; iloctime[1]: the time ndex at the maximum stacking point
 
