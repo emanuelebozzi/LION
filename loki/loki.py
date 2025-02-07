@@ -263,99 +263,22 @@ class Loki:
                 print("obs_dataS_sta shape:", obs_dataS_sta.shape)
                 print("npr:", npr)
 
-                stacking = location_t0_py.WaveformStacking(tobj, npr, tp_mod_sta, ts_mod_sta, obs_dataP_sta[0:2,0:2], obs_dataS_sta[0:2,0:2], obs_dataP_das[0:2,0:2], obs_dataS_das[0:2, 0:2])
-                iloc, itime, iloctime_sta, corrmatrix_sta, corrmatrix_das, corrmatrix = stacking.locate_event()
+                stacking = location_t0_py.WaveformStacking(tobj, npr, tp_mod_sta, ts_mod_sta, obs_dataP_sta[0:2,:], obs_dataS_sta[0:2,:], obs_dataP_das[0:2,:], obs_dataS_das[0:2,:])
+                iloc_sta, iloc_ch, iloc, itime, corrmatrix_sta, corrmatrix_ch, corrmatrix = stacking.locate_event()
                  
-
-                #iloctime_sta, corrmatrix_sta, corrmatrix_das, corrmatrix  = location_t0.stacking(tobj, tp_mod_sta, ts_mod_sta, obs_dataP_sta, obs_dataS_sta, npr)
-                #iloctime_das, corrmatrix_das = location_t0.stacking(tobj, tp_mod_sta, ts_mod_sta, obs_dataP_das[0:50, :], obs_dataS_das[0:50, :], npr)  # iloptime_das[0]: grid index; iloptime_das[1]: time index
- 
-                
-
-
-                #iloctime_sta, corrmatrix_sta = location_t0.stacking(tp_mod_sta, ts_mod_sta, obs_dataP_sta, obs_dataS_sta, npr)  # iloctime[0]: the grid index of the maximum stacking point; iloctime[1]: the time ndex at the maximum stacking point
-
-                print('output location stations:', iloctime_sta, corrmatrix_sta, corrmatrix_sta.shape)
-                print('output location DAS channels:', iloctime_das, corrmatrix_das, corrmatrix_das.shape)
-                # 1. Compute evtpmin_sta for all stations in tp_modse_sta
-
+                #stations 
+                evtpmin_sta = num.amin(tp_modse[iloc_sta[0],:])
+                event_t0_sta = sobj.dtime_max + datetime.timedelta(seconds=iloc_sta[1]*sobj.deltat_sta) - datetime.timedelta(seconds=evtpmin_sta)  # event origin time
+                event_t0s_sta = (event_t0_sta).isoformat()
                 # corrmatrix is the stacking matrix, in 1D format but can be 
                 # reformat to 3D format, each point saves the maximum stacking 
                 # value during this calculation time period
-
-
-                evtpmin_sta = {}
-                for station_data in tp_mod_sta:
-                    print(tp_mod_sta.shape)
-                    print(station_data)
-                    for station_key, station_array in station_data.items():
-                        # Compute the minimum for each station's array
-                        evtpmin_sta[station_key] = num.amin(station_array)
-
-                # 2. Compute evtpmin_das for all stations in tp_modse_das
-               # evtpmin_das = {}
-               # for station_data in tp_mod_das:
-               #     for station_key, station_array in station_data.items():
-               #         # Compute the minimum for each DAS station's array
-               #         evtpmin_das[station_key] = num.amin(station_array)
-
-                # 3. Calculate event origin time for each station in tp_modse_sta (using evtpmin_sta)
-#                for station_key_sta, evtpmin_sta_value in evtpmin_sta.items():
-#                    if evtpmin_sta_value is not None:
-#                        # Cast the numpy.float32 to a native Python float
-#                        evtpmin_sta_value = float(evtpmin_sta_value)
-#                        
-#                        event_t0_sta = sobj.dtime_max_sta + datetime.timedelta(seconds=iloctime_sta[1]*sobj.deltat_sta) - datetime.timedelta(seconds=evtpmin_sta_value)  # event origin time for sta
-#                        event_t0s_sta = event_t0_sta.isoformat()
-#                        print(f"Event origin time for station {station_key_sta}: {event_t0s_sta}")
-#                    else:
-#                        print(f"Station {station_key_sta} has no minimum value in evtpmin_sta")
-#
-#                # 4. Process the stacking function for DAS (using evtpmin_das for tp_modse_das)
-#                # Call the stacking function to get iloptime_das and corrmatrix_das
-
-
- #               print('tp_mod_das, ts_mod_das', tp_mod, ts_mod)
-
-                
-
-
-  #              # Now calculate event origin time for each DAS station
-   #             for station_key_das, evtpmin_das_value in evtpmin_das.items():
-    #                if evtpmin_das_value is not None:
-     #                   # Cast the numpy.float32 to a native Python float
-      #                  evtpmin_das_value = float(evtpmin_das_value)
-       #                 
-        #                # Assuming iloptime_das[0] is the grid index and iloptime_das[1] is the time index
-         #               event_t0_das = sobj.dtime_max_das + datetime.timedelta(seconds=iloptime_das[1]*sobj.deltat_das) - datetime.timedelta(seconds=evtpmin_das_value)  # event origin time for das
-          #              event_t0s_das = event_t0_das.isoformat()
-           #             print(f"Event origin time for DAS station {station_key_das}: {event_t0s_das}")
-            #        else:
-             #           print(f"Station {station_key_das} has no minimum value in evtpmin_das")
-
-
-
-
                 cmax_sta = num.max(corrmatrix_sta)
-                cmax_das = num.max(corrmatrix_das)
-
-
-                corrmatrix_sta = num.reshape(corrmatrix_sta,(tobj.nx,tobj.nx,tobj.nz))
-                corrmatrix_das = num.reshape(corrmatrix_das,(tobj.nx,tobj.nx,tobj.nz))
-
-                corrmatrix = corrmatrix_sta + corrmatrix_das
-
-
-                (ixloc_sta, iyloc_sta, izloc_sta) = num.unravel_index(iloctime_sta[0],(tobj.nx,tobj.nx,tobj.nz))
+                #corrmatrix = num.reshape(corrmatrix,(tobj.nx,tobj.ny,tobj.nz))
+                (ixloc_sta, iyloc_sta, izloc_sta) = num.unravel_index(iloc_sta[0],(tobj.nx,tobj.nx,tobj.nz))
                 xloc_sta = tobj.x[ixloc_sta]
                 yloc_sta = tobj.y[iyloc_sta]
                 zloc_sta = tobj.z[izloc_sta]
-
-
-                (ixloc_das, iyloc_das, izloc_das) = num.unravel_index(iloctime_das[0],(tobj.nx,tobj.nx,tobj.nz))
-                xloc_das = tobj.x[ixloc_das]
-                yloc_das = tobj.y[iyloc_das]
-                zloc_das = tobj.z[izloc_das]
                 
                 # output the current location result
                 if ntrial > 1:
@@ -368,20 +291,88 @@ class Loki:
                 else:
                     out_file.write(str(i)+' '+str(xloc_sta)+' '+str(yloc_sta)+' '+str(zloc_sta)+' '+str(cmax_sta)+'\n')
                 out_file.close()
+                
+                # save the stacked coherence matrix
+                num.save(self.output_path+'/'+event+'/'+'corrmatrix_trial_'+str(i),corrmatrix_sta)
+                
+                # plot migration profiles
+                self.coherence_plot(self.output_path+'/'+event, corrmatrix_sta, tobj.x, tobj.y, tobj.z, i)
+            
+                # output theoretical P- and S-wave arrivaltimes
+                fname_sta = cmfilename + '_trial{}.phs'.format(i)
+                self.write_phasetime(sobj.stations, event_t0_sta, tp_modse, ts_modse, iloc_sta[0], fname_sta)
+                
+                if cmax_sta > cmax_pre:
+                    event_t0s_final_sta = copy.deepcopy(event_t0s_sta)
+                    cmax_pre = copy.deepcopy(cmax_sta)
 
+
+                #fiber  
+                evtpmin_ch = num.amin(tp_modse[iloc_ch[0],:])
+                event_t0_ch = sobj.dtime_max + datetime.timedelta(seconds=iloc_sta[1]*sobj.deltat_das) - datetime.timedelta(seconds=evtpmin_ch)  # event origin time
+                event_t0s_ch = (event_t0_ch).isoformat()
+                # corrmatrix is the stacking matrix, in 1D format but can be 
+                # reformat to 3D format, each point saves the maximum stacking 
+                # value during this calculation time period
+                cmax_ch = num.max(corrmatrix_ch)
+                #corrmatrix = num.reshape(corrmatrix,(tobj.nx,tobj.ny,tobj.nz))
+                (ixloc_ch, iyloc_ch, izloc_ch) = num.unravel_index(iloc_ch[0],(tobj.nx,tobj.nx,tobj.nz))
+                xloc_ch = tobj.x[ixloc_ch]
+                yloc_ch = tobj.y[iyloc_ch]
+                zloc_ch = tobj.z[izloc_ch]
                 
                 # output the current location result
                 if ntrial > 1:
                     cmfilename = self.output_path+'/'+event+'/'+event
                 else:
-                    cmfilename = self.output_path+'/'+event+'/'+event_t0s_das
+                    cmfilename = self.output_path+'/'+event+'/'+event_t0s_ch
                 out_file = open(cmfilename+'.loc', 'a')
                 if STALTA:
-                    out_file.write(str(i)+' '+str(xloc_das)+' '+str(yloc_das)+' '+str(zloc_das)+' '+str(cmax_das)+' '+str(nshort_p_das)+' '+str(nshort_s_das)+' '+str(slrat)+'\n')
+                    out_file.write(str(i)+' '+str(xloc_ch)+' '+str(yloc_ch)+' '+str(zloc_ch)+' '+str(cmax_ch)+' '+str(nshort_p_sta)+' '+str(nshort_s_sta)+' '+str(slrat)+'\n')
                 else:
-                    out_file.write(str(i)+' '+str(xloc_das)+' '+str(yloc_das)+' '+str(zloc_das)+' '+str(cmax_das)+'\n')
-                out_file.close()  
+                    out_file.write(str(i)+' '+str(xloc_ch)+' '+str(yloc_ch)+' '+str(zloc_ch)+' '+str(cmax_sta)+'\n')
+                out_file.close()
+                
+                # save the stacked coherence matrix
+                num.save(self.output_path+'/'+event+'/'+'corrmatrix_trial_'+str(i),corrmatrix_sta)
+                
+                # plot migration profiles
+                self.coherence_plot(self.output_path+'/'+event, corrmatrix_ch, tobj.x, tobj.y, tobj.z, i)
+            
+                # output theoretical P- and S-wave arrivaltimes
+                fname_ch = cmfilename + '_trial{}.phs'.format(i)
+                self.write_phasetime(sobj.stations, event_t0_ch, tp_modse, ts_modse, iloc_ch[0], fname_ch)
+                
+                if cmax_ch > cmax_pre:
+                    event_t0s_final_ch = copy.deepcopy(event_t0s_ch)
+                    cmax_pre = copy.deepcopy(cmax_ch)
 
+                #totale
+                evtpmin = num.amin(tp_modse[iloc[0],:])
+                event_t0 = sobj.dtime_max + datetime.timedelta(seconds=iloc[1]*sobj.deltat_sta) - datetime.timedelta(seconds=evtpmin)  # event origin time
+                event_t0s = (event_t0).isoformat()
+                # corrmatrix is the stacking matrix, in 1D format but can be 
+                # reformat to 3D format, each point saves the maximum stacking 
+                # value during this calculation time period
+                cmax = num.max(corrmatrix)
+                #corrmatrix = num.reshape(corrmatrix,(tobj.nx,tobj.ny,tobj.nz))
+                (ixloc, iyloc, izloc) = num.unravel_index(iloc[0],(tobj.nx,tobj.nx,tobj.nz))
+                xloc = tobj.x[ixloc]
+                yloc = tobj.y[iyloc]
+                zloc = tobj.z[izloc]
+                
+                # output the current location result
+                if ntrial > 1:
+                    cmfilename = self.output_path+'/'+event+'/'+event
+                else:
+                    cmfilename = self.output_path+'/'+event+'/'+event_t0s
+                out_file = open(cmfilename+'.loc', 'a')
+                if STALTA:
+                    out_file.write(str(i)+' '+str(xloc)+' '+str(yloc)+' '+str(zloc)+' '+str(cmax)+' '+str(nshort_p_sta)+' '+str(nshort_s_sta)+' '+str(slrat)+'\n')
+                else:
+                    out_file.write(str(i)+' '+str(xloc)+' '+str(yloc)+' '+str(zloc)+' '+str(cmax)+'\n')
+                out_file.close()
+                
                 # save the stacked coherence matrix
                 num.save(self.output_path+'/'+event+'/'+'corrmatrix_trial_'+str(i),corrmatrix)
                 
@@ -389,28 +380,26 @@ class Loki:
                 self.coherence_plot(self.output_path+'/'+event, corrmatrix, tobj.x, tobj.y, tobj.z, i)
             
                 # output theoretical P- and S-wave arrivaltimes
-                fname_sta = cmfilename + '_trial_sta{}.phs'.format(i)
-                self.write_phasetime(sobj.stations, event_t0_sta, tp_modse, ts_modse, iloctime_sta[0], fname_sta)
-
-                # output theoretical P- and S-wave arrivaltimes
-                fname_das = cmfilename + '_trial_das{}.phs'.format(i)
-                self.write_phasetime(sobj.stations, event_t0_das, tp_modse, ts_modse, iloctime_das[0], fname_das)
-
+                fname = cmfilename + '_trial{}.phs'.format(i)
+                self.write_phasetime(sobj.stations, event_t0, tp_modse, ts_modse, iloc[0], fname)
+                
                 if cmax_sta > cmax_pre:
-                    event_t0s_final_sta = copy.deepcopy(event_t0s_sta)
-                    cmax_pre = copy.deepcopy(cmax_sta)
+                    event_t0s_final_tot = copy.deepcopy(event_t0s)
+                    cmax_pre = copy.deepcopy(cmax)
 
-                if cmax_das > cmax_pre:
-                    event_t0s_final_das = copy.deepcopy(event_t0s_das)
-                    cmax_pre = copy.deepcopy(cmax_das)
+
             
-            event_t0s_final = event_t0s_final_sta + event_t0s_final_das
+            self.catalogue_creation(event, event_t0s_final_sta, tobj.lat0, tobj.lon0, ntrial, corrmatrix_sta)
+            print('Location process completed (STA)!!!')
+            self.catalogue_creation(event, event_t0s_final_ch, tobj.lat0, tobj.lon0, ntrial, corrmatrix_ch)
+            print('Location process completed (FIBER)!!!')
+            self.catalogue_creation(event, event_t0s_final_tot, tobj.lat0, tobj.lon0, ntrial, corrmatrix)
+            print('Location process completed (HYBRID)!!!')
 
-            print('Total correlation matrix:', corrmatrix)
 
-            self.catalogue_creation(event, event_t0s_final, tobj.lat0, tobj.lon0, ntrial, corrmatrix)
-        print('Location process completed!!!')
-        gc.collect()
+            
+            gc.collect()
+
 
     def catalogue_creation(self, event, event_t0s, lat0, lon0, ntrial, corrmatrix, refell=23):
         latref=lat0; lonref=lon0; eleref=0.
@@ -557,4 +546,3 @@ class Loki:
         ofile.close()        
         
         return None
-
