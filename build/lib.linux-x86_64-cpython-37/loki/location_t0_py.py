@@ -1,4 +1,9 @@
 import numpy as num
+import logging 
+import time 
+
+#logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s")
+
 
 class WaveformStacking:
     def __init__(self, tobj, nproc, ttp, tts, obsp_sta, obss_sta, obsp_ch, obss_ch):
@@ -70,89 +75,124 @@ class WaveformStacking:
         self.lat_channels_rel = self.lat_channels + diff_suby / 2 - self.lat_channels.min()
         self.depth_channels_rel = self.depth_channels + diff_subz / 2 - self.depth_channels.min()
 
+
+
     def get_closest_travel_time(self, horizontal_distance, depth_value, tt_table):
+        start_time = time.time()  # Start timing
         tt_2d = tt_table.reshape(self.nx, self.nz)
 
-        '''
-        This function pick from the 2D traveltime table the values corresponding 
-        to the distance-depth closest to the current 3d grid point-sensor distance 
-        
-        '''
-        
+        # Log the input values
+        logging.debug(f"Computing travel time for Distance={horizontal_distance:.4f}, Depth={depth_value:.4f}")
+
         horiz_dist = num.linspace(0, self.nx * self.dx, self.nx)
         depth = num.linspace(0, self.nz * self.dz, self.nz)
+
         closest_x_idx = num.argmin(num.abs(horiz_dist - horizontal_distance))
         closest_z_idx = num.argmin(num.abs(depth - depth_value))
+
         travel_time = tt_2d[closest_x_idx, closest_z_idx]
+
+        end_time = time.time()  # End timing
+        elapsed_time = end_time - start_time
+
+        # Log execution time
+        logging.debug(f"Travel time lookup took {elapsed_time:.6f} seconds")
+
         return closest_x_idx, closest_z_idx, travel_time
+    
 
     def stacking(self, lon_sensors, lat_sensors, depth_sensors, itp, its, stalta_p, stalta_s):
+        """Function stacking energy along predicted travel times."""
         
-        'function stacking evergy along predicted tt'
+        logging.info("Stacking function called.")
+        start_time = time.time()  # Start timer
 
         nxyz = self.nx * self.nx * self.nz
         nsta = len(stalta_p[:, 1])
         nsamples = len(stalta_p[1, :])
-        
+
         corrmatrix = num.zeros(nxyz)
         corrmax = -1.0
         iloc, itime = 0, 0
 
         progress_step = nxyz // 300000  # 2% progress intervals
 
-        #OUTHER LOOP ON THE 3D GRID POINTS 
-        for i in range(0, 100):  #this is 100 atm because it's super-slow 
+        # **Monitor outer loop**
+        outer_start = time.time()
+
+        # Precompute the sensor distances to avoid repeated calculation
+        sensor_distances = num.sqrt(num.array(lon_sensors)**2 + num.array(lat_sensors)**2)
+
+        for i in range(0, nxyz):  # Limit loop for debugging
+            loop_start = time.time()  # Start timer for outer loop iteration
             if i % progress_step == 0:
                 print(f"Processing: {100 * i / nxyz:.6f}% completed")
 
             stkmax = -1.0
             kmax = 0
 
-            #LOOP OVER THE TIME OF EACH OBSERVED TRAVE 
-            for k in range(nsamples):
+            # **Monitor sensor loop**
+            sensor_loop_start = time.time()
+
+            for j in range(nsta):
+                # Precompute travel times for each sensor
+                current_horizontal_distance = sensor_distances[j]
+                current_depth = depth_sensors[j]
+
+                ttp_start = time.time()  # Start timing the travel time lookup
+                _, _, ttp_val = self.get_closest_travel_time(current_horizontal_distance, current_depth, itp)
+                ttp_end = time.time()  # End timing
+
+                tts_start = time.time()  # Start timing the travel time lookup
+                _, _, tts_val = self.get_closest_travel_time(current_horizontal_distance, current_depth, its)
+                tts_end = time.time()  # End timing
+
+                ttp_val = int(ttp_val)
+                tts_val = int(tts_val)
+
+                # **Monitor time loop**
+                time_loop_start = time.time()
                 stk0p = 0.0
                 stk0s = 0.0
-                #LOOP OVER THE SENSORS 
-                for j in range(nsta):
 
-                    current_horizontal_distance = num.sqrt(lon_sensors[j]**2 + lat_sensors[j]**2)
-                    current_depth = depth_sensors[j]
+                # Use numpy to avoid repeated range checks
+                ip_range = range(ttp_val, min(ttp_val + nsamples, nsamples))
+                is_range = range(tts_val, min(tts_val + nsamples, nsamples))
 
-                    _, _, ttp_val = self.get_closest_travel_time(current_horizontal_distance, current_depth, itp)
-                    _, _, tts_val = self.get_closest_travel_time(current_horizontal_distance, current_depth, its)
-                    
-                    ip = int(ttp_val + k)
-                    is_ = int(tts_val + k)
+                for ip, is_ in zip(ip_range, is_range):
+                    stk0p += stalta_p[j, ip]  # assuming j is defined and valid
+                    stk0s += stalta_s[j, is_]  # assuming j is defined and valid
 
-                    #print('current ip, is', ip, is_,nsamples)
-                    
-                    if (ip < nsamples) & (is_ < nsamples):
-
-                        print(stalta_p[j, ip])
-                        stk0p += stalta_p[j, ip]
-                        stk0s += stalta_s[j, is_]
-                        
-
+                time_loop_end = time.time()
                 if stk0p * stk0s > stkmax:
                     stkmax = stk0p * stk0s
-                    
-                    kmax = k
+                    kmax = ip  # Save the best matching index
 
-            #normalize 
+                logging.debug(f"Time loop for sensor {j+1} and iteration {i} took {time_loop_end - time_loop_start:.6f} seconds")
+
+            sensor_loop_end = time.time()
+            logging.debug(f"Sensor loop for outer loop iteration {i} took {sensor_loop_end - sensor_loop_start:.6f} seconds")
+
             corrmatrix[i] = num.sqrt(stkmax) / nsta
 
-
             if corrmatrix[i] > corrmax:
-
                 corrmax = corrmatrix[i]
                 iloc = i
                 itime = kmax
 
-            #print('corr matrix', corrmatrix[i])
+            loop_end = time.time()  # End timer for outer loop iteration
+            logging.debug(f"Outer loop iteration {i} took {loop_end - loop_start:.6f} seconds")
+
+        outer_end = time.time()
+        logging.info(f"Outer loop duration: {outer_end - outer_start:.2f} sec")
+
+        end_time = time.time()
+        logging.info(f"Stacking function completed in {end_time - start_time:.2f} seconds.")
 
         return (iloc, itime), corrmatrix
 
-    
+
+
     def locate_event(self):
 
         '''

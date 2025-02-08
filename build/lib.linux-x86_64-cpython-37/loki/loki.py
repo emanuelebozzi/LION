@@ -15,7 +15,7 @@ from loki import stacktraces
 from loki import latlon2cart
 from loki import location_t0_py
 import tt_processing                       # C
-import location_t0                         # C  for multiplying the P- and S-stacking values using this
+#import location_t0                         # C  for multiplying the P- and S-stacking values using this
 #import location_t0_plus                   # C  for adding the P- and S-stacking values using this
 
 
@@ -263,9 +263,49 @@ class Loki:
                 print("obs_dataS_sta shape:", obs_dataS_sta.shape)
                 print("npr:", npr)
 
+                #iloc, itime, corrmatrix = location_t0.stacking(itp, its, stalta_p, stalta_s, nproc)
+
                 stacking = location_t0_py.WaveformStacking(tobj, npr, tp_mod_sta, ts_mod_sta, obs_dataP_sta[0:2,:], obs_dataS_sta[0:2,:], obs_dataP_das[0:2,:], obs_dataS_das[0:2,:])
                 iloc_sta, iloc_ch, iloc, itime, corrmatrix_sta, corrmatrix_ch, corrmatrix = stacking.locate_event()
                  
+                #save 
+
+
+
+           
+                # Step 2: Save the 3D array
+                num.save("array_3d.npy", corrmatrix)
+
+                # Step 3: Extract slices
+                slice_xy = corrmatrix[:, :, 25]  # Middle slice along Z-axis
+                slice_xz = corrmatrix[:, 25, :]  # Middle slice along Y-axis
+                slice_yz = corrmatrix[25, :, :]  # Middle slice along X-axis
+
+                # Step 4: Plot the slices in subplots
+                fig, axes = plt.subplots(1, 3, figsize=(12, 4))
+
+                axes[0].imshow(slice_xy, cmap="gray")
+                axes[0].set_title("XY Plane (Z=25)")
+
+                axes[1].imshow(slice_xz, cmap="gray")
+                axes[1].set_title("XZ Plane (Y=25)")
+
+                axes[2].imshow(slice_yz, cmap="gray")
+                axes[2].set_title("YZ Plane (X=25)")
+
+                for ax in axes:
+                    ax.axis("off")  # Hide axes for better visualization
+
+                # Step 5: Save the figure
+                plt.savefig("slices_subplot.png", dpi=300, bbox_inches="tight")
+                plt.show()
+
+
+                ####
+
+
+'''
+
                 #stations 
                 evtpmin_sta = num.amin(tp_modse[iloc_sta[0],:])
                 event_t0_sta = sobj.dtime_max + datetime.timedelta(seconds=iloc_sta[1]*sobj.deltat_sta) - datetime.timedelta(seconds=evtpmin_sta)  # event origin time
@@ -546,3 +586,5 @@ class Loki:
         ofile.close()        
         
         return None
+
+'''
