@@ -7,9 +7,9 @@ To call LOKI you need this file and make it executable (or call python)
 
 from loki.loki import Loki
 
-db_path = '/home/emanuele/data/emanuele/loki-das/Traveltimes'
+db_path = '/home/emanuele/data/emanuele/loki-das/Traveltimes/new'
 data_path = '/home/emanuele/data/emanuele/loki-das/Data'
-output_path = './Test_1/output'
+output_path = '/home/emanuele/data/emanuele/loki-das/Traveltimes/new/output'
 hdr_filename = 'header_long.hdr'
 geometry_filename_fiber = 'channels.dat'
 geometry_filename_stat = 'stations.dat'
@@ -24,7 +24,7 @@ inputs['ntrial'] = 1
 inputs['derivative'] = True
 inputs['vfunc'] = 'erg'
 inputs['hfunc'] = 'pca'
-inputs['model'] = 'das'
+inputs['model'] = 'layer'
 inputs['epsilon'] = 0.001
 precision = 'single'
 comp = ['E', 'N', 'Z']

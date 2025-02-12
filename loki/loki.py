@@ -104,6 +104,8 @@ class Loki:
         tp = tobj.load_traveltimes('P', model, precision) 
         ts = tobj.load_traveltimes('S', model, precision)
 
+        
+
         #load id of stations, channels and their location 
     
         tobj.load_station_info()
@@ -265,43 +267,17 @@ class Loki:
 
                 #iloc, itime, corrmatrix = location_t0.stacking(itp, its, stalta_p, stalta_s, nproc)
 
-                stacking = location_t0_py.WaveformStacking(tobj, npr, tp_mod_sta, ts_mod_sta, obs_dataP_sta[0:2,:], obs_dataS_sta[0:2,:], obs_dataP_das[0:2,:], obs_dataS_das[0:2,:])
+                stacking = location_t0_py.WaveformStacking(tobj, npr, tp_mod_sta, ts_mod_sta, obs_dataP_sta[:,:], obs_dataS_sta[:,:], obs_dataP_das[0:2,:], obs_dataS_das[0:2,:])
                 iloc_sta, iloc_ch, iloc, itime, corrmatrix_sta, corrmatrix_ch, corrmatrix = stacking.locate_event()
                  
                 #save 
 
-
-
-           
+   
                 # Step 2: Save the 3D array
-                num.save("array_3d.npy", corrmatrix)
+                num.save("array_3d_tot.npy", corrmatrix)
+                num.save("array_3d_sta.npy", corrmatrix_sta)
+                num.save("array_3d_fiber.npy", corrmatrix_ch)
 
-                # Step 3: Extract slices
-                slice_xy = corrmatrix[:, :, 25]  # Middle slice along Z-axis
-                slice_xz = corrmatrix[:, 25, :]  # Middle slice along Y-axis
-                slice_yz = corrmatrix[25, :, :]  # Middle slice along X-axis
-
-                # Step 4: Plot the slices in subplots
-                fig, axes = plt.subplots(1, 3, figsize=(12, 4))
-
-                axes[0].imshow(slice_xy, cmap="gray")
-                axes[0].set_title("XY Plane (Z=25)")
-
-                axes[1].imshow(slice_xz, cmap="gray")
-                axes[1].set_title("XZ Plane (Y=25)")
-
-                axes[2].imshow(slice_yz, cmap="gray")
-                axes[2].set_title("YZ Plane (X=25)")
-
-                for ax in axes:
-                    ax.axis("off")  # Hide axes for better visualization
-
-                # Step 5: Save the figure
-                plt.savefig("slices_subplot.png", dpi=300, bbox_inches="tight")
-                plt.show()
-
-
-                ####
 
 
 '''
