@@ -8,7 +8,8 @@
 # output filename root
 # (VGOUT <output file root>)
 # Layer 2DGrid
-VGOUT /home/emanuele/LOKI-DAS/NLL_loki_requirements/TEST_NLL/Traveltimes/
+
+VGOUT /home/emanuele/data/emanuele/loki-das/Traveltimes/new/layer
 
 # wave type
 # (VGTYPE wave_type (P, S))
@@ -32,7 +33,7 @@ VGTYPE S
 #
 #
 # Layer 3DGrid (NOTE: num_grid_x must be = 2 for 2D grids)
-VGGRID  2 101 101 0.0 0.0 0.0  0.05 0.05 0.05  SLOW_LEN
+VGGRID 2 101 101 0.0 0.0 0.0  0.05 0.05 0.05  SLOW_LEN FLOAT
 
 # -----------------------------------------------------------------------------
 # velocity model description

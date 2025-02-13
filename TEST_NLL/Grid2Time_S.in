@@ -9,7 +9,7 @@
 # (GTFILES <input file root> <output file root> wave_type (P, S))
 #
 # 2D
-GTFILES  /home/emanuele/LOKI-DAS/NLL_loki_requirements/TEST_NLL/Traveltimes/layer  /home/emanuele/LOKI-DAS/NLL_loki_requirements/TEST_NLL/Traveltimes/layer S 
+GTFILES  /home/emanuele/data/emanuele/loki-das/Traveltimes/new/layer  /home/emanuele/data/emanuele/loki-das/Traveltimes/new/layer S 
  
 
 # time grid modes
@@ -19,7 +19,7 @@ GTFILES  /home/emanuele/LOKI-DAS/NLL_loki_requirements/TEST_NLL/Traveltimes/laye
 #
 #GTMODE GRID3D ANGLES_YES
 #GTMODE GRID2D ANGLES_YES
-GTMODE GRID3D ANGLES_NO
+GTMODE GRID2D ANGLES_NO
 
 # source description (multiple sources can be specified)
 # (GTSRCE  label  x_srce  y_srce   z_srce   elev)
@@ -35,21 +35,7 @@ GTMODE GRID3D ANGLES_NO
 #    elev : km pos UP
 #
 
-GTSRCE HM01 LATLON 51.67223 7.73717 0.0 0. 
-GTSRCE HM02 LATLON 51.65656 7.74178 0.0 0.
-GTSRCE HM03 LATLON 51.66499 7.74745 0.0 0.
-GTSRCE HM04 LATLON 51.66097 7.73808 0.0 0.
-GTSRCE HM05 LATLON 51.65890 7.74283 0.0 0.
-GTSRCE HM06 LATLON 51.65965 7.75079 0.0 0.
-GTSRCE HM07 LATLON 51.65704 7.74071 0.0 0.
-GTSRCE HM08 LATLON 51.65624 7.74555 0.0 0.
-GTSRCE HM09 LATLON 51.65616 7.75536 0.0 0.
-GTSRCE HM10 LATLON 51.65312 7.73344 0.0 0.
-GTSRCE HM11 LATLON 51.65334 7.74765 0.0 0.
-GTSRCE HM12 LATLON 51.64850 7.75228 0.0 0.
-GTSRCE HM13 LATLON 51.64538 7.73056 0.0 0.
-GTSRCE HM14 LATLON 51.64781 7.74162 0.0 0.
-GTSRCE HM20 LATLON 51.65312 7.73344 0.0 0.
+GTSRCE HM01 LATLON 0 0  0.0 0.
 
 
 

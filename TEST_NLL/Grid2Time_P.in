@@ -9,7 +9,7 @@
 # (GTFILES <input file root> <output file root> wave_type (P, S))
 #
 # 2D
-GTFILES  /home/emanuele/LOKI-DAS/NLL_loki_requirements/TEST_NLL/Traveltimes/syn_das_prova_ema/das /home/emanuele/LOKI-DAS/NLL_loki_requirements/TEST_NLL/Traveltimes/syn_das_prova_ema/das P 
+GTFILES  /home/emanuele/data/emanuele/loki-das/Traveltimes/new/layer /home/emanuele/data/emanuele/loki-das/Traveltimes/new/layer P 
 
 # time grid modes
 # (GTMODE grid_mode, angle_mode)

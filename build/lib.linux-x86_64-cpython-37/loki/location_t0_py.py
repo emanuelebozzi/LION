@@ -19,7 +19,7 @@ class WaveformStacking:
         self.nz = tobj.nz
         self.dx = tobj.dx
         self.dz = tobj.dz
-        #domain 
+        #domain (from the assumption that the domain is defined from the dimension of the traveltime table, representing its diagonal)
         self.x = tobj.x
         self.y = tobj.y
         self.z = tobj.z
@@ -60,6 +60,9 @@ class WaveformStacking:
         extz_sub = num.abs(num.minimum(self.depth_stations.min(), self.depth_channels.min()) - 
                            num.maximum(self.depth_stations.max(), self.depth_channels.max()))
 
+        extx_sub = extx_sub
+        exty_sub = extx_sub
+
         #define the current extension of the traveltime domain 
         extx_tt = (self.nx * self.dx)
         extz_tt = (self.nz * self.dz)
@@ -79,7 +82,8 @@ class WaveformStacking:
         z_vals = self.z
 
         print('this is the dimension on x,y,z of the location domain', x_vals, y_vals, z_vals )
-
+        
+        
         # Create meshgrid for coordinates
         #X, Y, Z = num.meshgrid(x_vals, y_vals, z_vals, indexing='ij')
 
@@ -132,8 +136,6 @@ class WaveformStacking:
         self.depth_channels_rel = (self.depth_channels + diff_subz / 2) - self.depth_channels.min()
 
 
-
-
         #print('lon stations rel', self.lon_stations_rel)
         #print('lat stations rel', self.lat_stations_rel)
 
@@ -147,12 +149,11 @@ class WaveformStacking:
         logging.debug(f"Computing travel time for Distance={horizontal_distance:.4f}, Depth={depth_value:.4f}")
 
         #horizontal and depth distances  of the 2d traveltime table
-        horiz_dist = num.linspace(0, self.nx * self.dx, self.nx)
-        depth = num.linspace(0, self.nz * self.dz, self.nz)
+        horiz_dist = num.arange(0, (self.nx * self.dx) -self.dx, (self.dx))
+        depth = num.arange(0, (self.nz * self.dz) -self.dz, self.dz)
 
         #identify where the current depth, horizontal distance are most symilar to the one the traveltime
         
-        #
 
         a = num.abs(horiz_dist - horizontal_distance)  
         closest_x_idx = num.argmin(a)  
@@ -189,6 +190,8 @@ class WaveformStacking:
         
         #correlation matrix 3D for the location
         corrmatrix = num.zeros(nxyz)
+        stk0p = num.zeros((nsta, nsamples))
+        stk0s = num.zeros((nsta, nsamples))
         corrmax = -1.0
         iloc, itime = 0, 0
 
@@ -224,9 +227,11 @@ class WaveformStacking:
             # **Monitor sensor loop**
             sensor_loop_start = time.time()
             
-
-            #LOOP ON THE STATIONS 
+            
+                        #LOOP ON THE STATIONS 
             for j in range(nsta):
+
+                a = 0
                 #print('j', j)
                 # current horizontal distance and depth 
                 
@@ -245,7 +250,6 @@ class WaveformStacking:
                 ttp_end = time.time()  # End timing
 
                 
-
                 tts_start = time.time()  # Start timing the travel time lookup (TS)
                 horiz2, dep2, _, _, tts_val = self.get_closest_travel_time(current_horizontal_distance, current_depth, its)
                 tts_end = time.time()  # End timing
@@ -259,33 +263,46 @@ class WaveformStacking:
 
                 # **Monitor time loop**
                 time_loop_start = time.time()
-                stk0p = 0.0
-                stk0s = 0.0
+
 
                 # Use numpy to avoid repeated range checks
-                ip_range = range(ttp_val, min(ttp_val + nsamples, nsamples))
-                is_range = range(tts_val, min(tts_val + nsamples, nsamples))
-
+                #ip_range = range(ttp_val, min(ttp_val + nsamples, nsamples))
+                #is_range = range(tts_val, min(tts_val + nsamples, nsamples))
+                
+                ip_range = range(ttp_val, ttp_val + nsamples)
+                is_range = range(tts_val, tts_val + nsamples)
+                
 
                 #stack for each station and time  
-                for ip, is_ in zip(ip_range, is_range):
-                    stk0p += stalta_p[j, ip]  
-                    stk0s += stalta_s[j, is_] 
+                
 
+                for ip, is_ in zip(ip_range, is_range):
+                    if is_ < nsamples:
+    
+                        stk0p[j,a] = stalta_p[j, ip]  
+                        stk0s[j,a] = stalta_s[j, is_] 
+                        a = a +1
+                    else: 
+                    
+                    #stk0p=0 + stk0p
+                    #stk0s=0 + stk0s
+                        stk0p[j,a] = 0 
+                        stk0s[j,a] = 0
+                        a = a +1
                 #print('stack p', stk0p)
+                
 
                 #time_loop_end = time.time()
 
-                
-                if stk0p * stk0s > stkmax:
-                    stkmax = stk0p * stk0s
-                    kmax = ip  # Save the best matching index
+            stk0p_sta = num.sum(stk0p, axis=0)
+            stk0s_sta = num.sum(stk0s, axis=0)
+
+            for k in range(0, nsamples):
+
+                if stk0p_sta[k]*stk0s_sta[k] > stkmax:
+                    stkmax = stk0p_sta[k]*stk0s_sta[k]
+                    kmax = k  # Save the best matching index
                     #print('stack', stkmax)
-
-                #logging.debug(f"Time loop for sensor {j+1} and iteration {i} took {time_loop_end - time_loop_start:.6f} seconds")
-
-            #sensor_loop_end = time.time()
-            #logging.debug(f"Sensor loop for outer loop iteration {i} took {sensor_loop_end - sensor_loop_start:.6f} seconds")
 
             corrmatrix[i] = num.sqrt(stkmax) / nsta
             #print('current corr matrix', corrmatrix[i])
@@ -321,7 +338,7 @@ class WaveformStacking:
         #corrmatrix stations-fiber 
 
         iloc_sta, corrmatrix_sta = self.stacking(self.lon_stations_rel, self.lat_stations_rel, self.depth_stations_rel, self.ttp, self.tts, self.obsp_sta, self.obss_sta)
-        iloc_sta, corrmatrix_sta = self.stacking(self.lon_stations_rel, self.lat_stations_rel, self.depth_stations_rel, self.ttp, self.tts, self.obsp_sta, self.obss_sta)
+        #iloc_sta, corrmatrix_sta = self.stacking(self.lon_stations_rel, self.lat_stations_rel, self.depth_stations_rel, self.ttp, self.tts, self.obsp_sta, self.obss_sta)
 
         #iloc_ch, corrmatrix_ch = self.stacking(self.lon_channels_rel, self.lat_channels_rel, self.depth_channels_rel, self.ttp, self.tts, self.obsp_ch, self.obss_ch)
         

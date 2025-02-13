@@ -65,10 +65,9 @@ class Traveltimes:
 
         #here info on the location 3D grid 
 
-
-        self.x = self.x0 + num.arange(0, (self.nx * self.dx) / num.sqrt(2), (self.dx / num.sqrt(2)))  #define the grid search based on the 2D traveltime grid
-        self.y = self.x0 + num.arange(0, (self.nx * self.dx) / num.sqrt(2), (self.dx / num.sqrt(2)))  #define the grid search based on the 2D traveltime grid
-        self.z = self.z0 + num.arange(0, (self.nz * self.dz) , self.dz) #define the grid search based on the 2D traveltime grid
+        self.x = self.x0 + num.arange(0, (self.nx * self.dx) - (self.dx) , (self.dx ))  #define the grid search based on the 2D traveltime grid
+        self.y = self.x0 + num.arange(0, (self.nx * self.dx) - (self.dx), (self.dx ))  #define the grid search based on the 2D traveltime grid
+        self.z = self.z0 + num.arange(0, (self.nz * self.dz) - (self.dz), self.dz) #define the grid search based on the 2D traveltime grid
         self.nxyz=self.nx*self.nx*self.nz 
         self.nxz=self.nx*self.nz 
         self.delta_das = 0.01  #

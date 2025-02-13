@@ -60,7 +60,7 @@ TRANS  SIMPLE  0.0  0.0  0.0
 # END of Generic control file statements
 # =============================================================================
 # =============================================================================
-INCLUDE /home/emanuele/LOKI-DAS/TEST_NLL/Vel2Grid_P.in   
-INCLUDE /home/emanuele/LOKI-DAS/TEST_NLL/Grid2Time_P.in
+INCLUDE /home/emanuele/LOKI-DAS/TEST_NLL/Vel2Grid_S.in   
+INCLUDE /home/emanuele/LOKI-DAS/TEST_NLL/Grid2Time_S.in
 #INCLUDE /home/wulwife/RUHR1D/Vel2Grid_S.in
 #INCLUDE /home/wulwife/RUHR1D/Grid2Time_S.in
