@@ -19,6 +19,8 @@ import os
 import sys
 import numpy as num
 import matplotlib.pyplot as plt
+from pyproj import Proj, transform
+import utm
 #import loki.latlon2cart as ll2c
 
 class Traveltimes:
@@ -40,17 +42,29 @@ class Traveltimes:
         self.load_station_info()
         self.load_channel_info()
 
+
 #modify to read only two components (ny out, modify header)
+
+    def convert_to_utm(lat, lon, ref_lat=51.64, ref_lon=7.72):
+        ref_east, ref_north, _, _ = utm.from_latlon(ref_lat, ref_lon)
+        east, north, _, _ = utm.from_latlon(lat, lon)
+        return (east - ref_east) / 1000, (north - ref_north) / 1000
 
     def load_header(self):
 
         #this method loads information on the big 2D traveltime grid and 3D location grid 
+
+                # Define WGS84 (lat/lon) and UTM projection (example for zone 33N)
+        self.wgs84 = Proj(proj="latlong", datum="WGS84")
+        self.utm33n = Proj(proj="utm", zone=32, datum="WGS84")
+        print(self.wgs84)
+
    
         f = open(os.path.join(self.db_path, self.hdr_filename))
         lines = f.readlines()  #read header info 
         #here info on the big traveltime 2D grid 
         self.nx, self.nz = [ int(x)   for x in lines[0].split()]  #number of points on the grid
-        self.x0, self.z0 = [ float(x) for x in lines[1].split()]  #starting point of the grid 
+        self.y0, self.x0, self.z0 = [ float(x) for x in lines[1].split()]  #starting point of the grid 
         self.dx, self.dz = [ float(x) for x in lines[2].split()]  #grid spacing
         self.lat0, self.lon0 = [ float(x) for x in lines[3].split()] #lat lon starting point 
         self.nttx, self.nttz=[ int(x)   for x in lines[4].split()] #traveltime points along distance and depth 
@@ -63,14 +77,21 @@ class Traveltimes:
             self.ref_station_coordinates = None  
         self.refsta = toks[0] if toks else None  
 
-        #here info on the location 3D grid 
+        #here info on the location 3D grid. The domain is a cube, so the grid is the same in x and y
+        #the dimension of the traveltime table is the one driving the dimension of the grid
+        #the traveltime table is the diagonal of the grid  (num.sqrt(2)), thus x,y,z are recontructed using the square root of 2
 
-        self.x = self.x0 + num.arange(0, (self.nx * self.dx) - (self.dx) , (self.dx ))  #define the grid search based on the 2D traveltime grid
-        self.y = self.x0 + num.arange(0, (self.nx * self.dx) - (self.dx), (self.dx ))  #define the grid search based on the 2D traveltime grid
-        self.z = self.z0 + num.arange(0, (self.nz * self.dz) - (self.dz), self.dz) #define the grid search based on the 2D traveltime grid
-        self.nxyz=self.nx*self.nx*self.nz 
+        self.x =  num.arange(0, (self.nx * self.dx)/num.sqrt(2) , (self.dx/num.sqrt(2)))  #define the grid search based on the 2D traveltime grid
+        self.y =  num.arange(0, (self.nx * self.dx)/num.sqrt(2), (self.dx/num.sqrt(2) ))  #define the grid search based on the 2D traveltime grid
+        self.z =  num.arange(0, (self.nz * self.dz), self.dz) #define the grid search based on the 2D traveltime grid
+        
+        self.nxyz=self.nx*self.nx*self.nz #number of points 
         self.nxz=self.nx*self.nz 
         self.delta_das = 0.01  #
+
+        self.x0, self.y0 = transform(self.wgs84, self.utm33n, self.x0, self.y0)
+        self.x0 = self.x0*1e-3
+        self.y0 = self.y0*1e-3
 
 
     def load_station_info(self): 
@@ -91,8 +112,11 @@ class Traveltimes:
             # Check if the line has at least 3 columns to avoid errors
             if len(columns) >= 4:
                 self.db_stations.append(str(columns[0]))
-                self.lon_stations.append(float(columns[1]))
-                self.lat_stations.append(float(columns[2]))
+                lon_degr = float(columns[2])
+                lat_degr = float(columns[1])
+                lon_utm, lat_utm = transform(self.wgs84, self.utm33n, lon_degr, lat_degr)
+                self.lon_stations.append(lon_utm*1e-3 - self.lon0)
+                self.lat_stations.append(lat_utm*1e-3 - self.lat0)
                 self.depth_stations.append(float(columns[3]))
 
                 self.stations_coordinates[str(columns[0])] = (self.lon_stations, self.lat_stations, self.depth_stations)

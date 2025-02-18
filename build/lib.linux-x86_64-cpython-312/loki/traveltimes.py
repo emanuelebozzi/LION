@@ -19,11 +19,12 @@ import os
 import sys
 import numpy as num
 import matplotlib.pyplot as plt
+from pyproj import Proj, transform
 #import loki.latlon2cart as ll2c
 
 class Traveltimes:
 
-    def __init__(self, db_path, hdr_filename, geometry_filename):
+    def __init__(self, db_path, hdr_filename, geometry_filename_fiber, geometry_filename_stat):
         if not os.path.isdir(db_path):
             print('Error: data or database path do not exist')
             sys.exit()
@@ -35,20 +36,29 @@ class Traveltimes:
         self.refsta = None
         self.hdr_filename = hdr_filename
         self.load_header()
-        self.geometry_filename = geometry_filename
+        self.geometry_filename_stat = geometry_filename_stat
+        self.geometry_filename_fiber = geometry_filename_fiber
         self.load_station_info()
+        self.load_channel_info()
+
 
 #modify to read only two components (ny out, modify header)
 
     def load_header(self):
 
         #this method loads information on the big 2D traveltime grid and 3D location grid 
+
+                # Define WGS84 (lat/lon) and UTM projection (example for zone 33N)
+        self.wgs84 = Proj(proj="latlong", datum="WGS84")
+        self.utm33n = Proj(proj="utm", zone=32, datum="WGS84")
+        print(self.wgs84)
+
    
         f = open(os.path.join(self.db_path, self.hdr_filename))
         lines = f.readlines()  #read header info 
         #here info on the big traveltime 2D grid 
         self.nx, self.nz = [ int(x)   for x in lines[0].split()]  #number of points on the grid
-        self.x0, self.z0 = [ float(x) for x in lines[1].split()]  #starting point of the grid 
+        self.x0, self.y0, self.z0 = [ float(x) for x in lines[1].split()]  #starting point of the grid 
         self.dx, self.dz = [ float(x) for x in lines[2].split()]  #grid spacing
         self.lat0, self.lon0 = [ float(x) for x in lines[3].split()] #lat lon starting point 
         self.nttx, self.nttz=[ int(x)   for x in lines[4].split()] #traveltime points along distance and depth 
@@ -61,41 +71,78 @@ class Traveltimes:
             self.ref_station_coordinates = None  
         self.refsta = toks[0] if toks else None  
 
-        #here info on the location 3D grid 
-        self.x = self.x0+(num.arange(self.dx,(self.nx*self.dx)/num.sqrt(2)))  #define the grid search based on the 2D traveltime grid
-        self.y = self.x0+(num.arange(self.dx,(self.nx*self.dx)/num.sqrt(2)))  #define the grid search based on the 2D traveltime grid (cateto della diagonale)
-        self.z = self.z0+(num.arange(0,self.nz)*self.dz)  
-        self.nxyz=self.nx*self.nx*self.nz 
+        #here info on the location 3D grid. The domain is a cube, so the grid is the same in x and y
+        #the dimension of the traveltime table is the one driving the dimension of the grid
+        #the traveltime table is the diagonal of the grid  (num.sqrt(2)), thus x,y,z are recontructed using the square root of 2
+
+        self.x =  num.arange(0, (self.nx * self.dx)/num.sqrt(2) , (self.dx/num.sqrt(2)))  #define the grid search based on the 2D traveltime grid
+        self.y =  num.arange(0, (self.nx * self.dx)/num.sqrt(2), (self.dx/num.sqrt(2) ))  #define the grid search based on the 2D traveltime grid
+        self.z =  num.arange(0, (self.nz * self.dz), self.dz) #define the grid search based on the 2D traveltime grid
+        
+        self.nxyz=self.nx*self.nx*self.nz #number of points 
         self.nxz=self.nx*self.nz 
         self.delta_das = 0.01  #
+
+        self.x0, self.y0 = transform(self.wgs84, self.utm33n, self.x0, self.y0)
+        self.x0 = self.x0*1e-3
+        self.y0 = self.y0*1e-3
 
 
     def load_station_info(self): 
         
         #read information on the location grid and the stations 
-        db_stalist=[]
-        stations_coordinates={}
-        f = open(os.path.join(self.db_path, self.geometry_filename))
+
+        self.stations_coordinates={}
+        self.db_stations = []
+        self.lon_stations = []
+        self.lat_stations = []
+        self.depth_stations = []
+        f = open(os.path.join(self.db_path, self.geometry_filename_stat))
         lines = f.readlines()  #read header info
-        id_end_das = lines[0]
-        for line in lines[1:]:        
-            toks=line.split()
-            db_stalist.append(toks[0])   #list of station id
-            if len(toks)>1:
-                stations_coordinates[toks[0]]=[eval(toks[1])-self.lon0, eval(toks[2])-self.lat0, eval(toks[3])] #station coordinates converted to relative based on the location of the reference point at the beginning of the big 2D traveltime table 
+        for line in lines:
+            # Assuming the file is space or tab-delimited. Adjust delimiter as needed.
+            columns = line.strip().split()  # Removes any leading/trailing whitespace and splits by spaces
+
+            # Check if the line has at least 3 columns to avoid errors
+            if len(columns) >= 4:
+                self.db_stations.append(str(columns[0]))
+                lon_degr = float(columns[1])
+                lat_degr = float(columns[2])
+                lon_utm, lat_utm = transform(self.wgs84, self.utm33n, lon_degr, lat_degr)
+                self.lon_stations.append(lon_utm*1e-3 - self.lon0)
+                self.lat_stations.append(lat_utm*1e-3 - self.lat0)
+                self.depth_stations.append(float(columns[3]))
+
+                self.stations_coordinates[str(columns[0])] = (self.lon_stations, self.lat_stations, self.depth_stations)
+
+
+    def load_channel_info(self): 
+
+
         
-        db_stalist = [int(x) for x in db_stalist]
-        id_end_das = int(id_end_das)
+        #read information on the location grid and the stations 
+        self.channels_coordinates={}
+        self.db_channels = []
+        self.lon_channels = []
+        self.lat_channels = []
+        self.depth_channels = []
 
-        # Ensure the slicing works
-        self.id_das_stations = db_stalist[1:id_end_das]
+        a = open(os.path.join(self.db_path, self.geometry_filename_fiber))
+        
+        lines = a.readlines()  #read header info
+        for line in lines:
+            # Assuming the file is space or tab-delimited. Adjust delimiter as needed.
+            columns = line.strip().split()  # Removes any leading/trailing whitespace and splits by spaces
 
-        self.id_das_stations = db_stalist[1:id_end_das]
-        self.id_ign_stations = db_stalist[id_end_das:len(db_stalist)]
-        self.db_stations=set(db_stalist)
-        self.stations_coordinates=stations_coordinates
+            # Check if the line has at least 3 columns to avoid errors
+            if len(columns) >= 4:
 
-
+                self.db_channels.append(str(columns[0]))
+                self.lon_channels.append(float(columns[1]))
+                self.lat_channels.append(float(columns[2]))
+                self.depth_channels.append(float(columns[3]))
+                self.channels_coordinates[str(columns[0])] = (self.lon_stations, self.lat_stations, self.depth_stations)
+        
 
     def load_traveltimes(self, phase, label='layer', precision='single'):
 

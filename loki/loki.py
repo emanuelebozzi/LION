@@ -120,8 +120,8 @@ class Loki:
 
             #Reading the observed wavefields (stations and DAS)
 
-            wobj = waveforms.Waveforms(tobj=tobj, data_path = data_path, event_path=event_path, extension_sta="*", extension_das='CANDAS2_2023-01-07_10-48-10.h5', freq=None)
-
+            #wobj = waveforms.Waveforms(tobj=tobj, data_path = data_path, event_path=event_path, extension_sta="*", extension_das='CANDAS2_2023-01-07_10-48-10.h5', freq=None)
+            wobj = waveforms.Waveforms(event_path, extension_sta="*", freq=None)
 
             #object of the class stacktraces  
 
@@ -138,8 +138,8 @@ class Loki:
                 os.mkdir(self.output_path+'/'+event)
 
    
-            tpxz=tp['HM01'].reshape(tobj.nxz, 1)
-            tsxz=ts['HM01'].reshape(tobj.nxz, 1)
+            tpxz=tp['HM00'].reshape(tobj.nxz, 1)
+            tsxz=ts['HM00'].reshape(tobj.nxz, 1)
 
             print('tpxz:',  tpxz.shape, tpxz.dtype)
             print('tsxz:',  tsxz.shape, tsxz.dtype)
@@ -152,12 +152,16 @@ class Loki:
             tp_modse = num.ascontiguousarray(tpxz)
             ts_modse = num.ascontiguousarray(tsxz)
 
-            print('sobj.deltat_sta', sobj.deltat_sta)
-            print('sobj.deltat_das', sobj.deltat_das)
+            #print('sobj.deltat_sta', sobj.deltat_sta)
+            #print('sobj.deltat_das', sobj.deltat_das)
             ########################################
 
-            tp_mod_sta, ts_mod_sta = tt_processing.tt_f2i(sobj.deltat_sta, tp_modse, ts_modse, npr)  # traveltime table in time sample, for each imaging point traveltimes have substracted the minimal P traveltime
-            tp_mod_das, ts_mod_das = tt_processing.tt_f2i(sobj.deltat_das, tp_modse, ts_modse, npr)  # traveltime table in time sample, for each imaging point traveltimes have substracted the minimal P traveltime
+
+            tp_mod_sta, ts_mod_sta = tt_processing.tt_f2i(sobj.deltat, tp_modse, ts_modse, npr)  # traveltime table in time sample, for each imaging point traveltimes have substracted the minimal P traveltime
+
+
+            #tp_mod_sta, ts_mod_sta = tt_processing.tt_f2i(sobj.deltat_sta, tp_modse, ts_modse, npr)  # traveltime table in time sample, for each imaging point traveltimes have substracted the minimal P traveltime
+            #tp_mod_das, ts_mod_das = tt_processing.tt_f2i(sobj.deltat_das, tp_modse, ts_modse, npr)  # traveltime table in time sample, for each imaging point traveltimes have substracted the minimal P traveltime
 
 
 
@@ -166,16 +170,36 @@ class Loki:
             cmax_pre = -1.0
             for i in range(ntrial):
                 if STALTA:
+
+                    print('a')
                     # need to calculate STA/LTA from the characteristic funtion
                     # then stack the STA/LTA for imaging
-                    nshort_p_sta = int(tshortp[i]//sobj.deltat_sta)
-                    nshort_s_sta = int(tshorts[i]//sobj.deltat_sta)
-                    nshort_p_das = int(tshortp[i]//sobj.deltat_das)
-                    nshort_s_das = int(tshorts[i]//sobj.deltat_das)
-                    obs_dataP_sta, obs_dataS_sta = sobj.loc_stalta_sta(nshort_p_sta, nshort_s_sta, slrat, norm=1)
-                    obs_dataP_das, obs_dataS_das = sobj.loc_stalta_das(nshort_p_das, nshort_s_das, slrat, norm=1)
+                    #nshort_p_sta = int(tshortp[i]//sobj.deltat_sta)
+                    #nshort_s_sta = int(tshorts[i]//sobj.deltat_sta)
+                    #nshort_p_das = int(tshortp[i]//sobj.deltat_das)
+                    #nshort_s_das = int(tshorts[i]//sobj.deltat_das)
+
+                    nshort_p_sta = int(tshortp[i]//sobj.deltat)
+                    nshort_s_sta = int(tshorts[i]//sobj.deltat)
+                    nshort_p_das = int(tshortp[i]//sobj.deltat)
+                    nshort_s_das = int(tshorts[i]//sobj.deltat)
+
+
+                    #obs_dataP_sta, obs_dataS_sta = sobj.loc_stalta_sta(nshort_p_sta, nshort_s_sta, slrat, norm=1)
+                    #obs_dataP_das, obs_dataS_das = sobj.loc_stalta_das(nshort_p_das, nshort_s_das, slrat, norm=1)
+
+
+                    obs_dataP_sta, obs_dataS_sta = sobj.loc_stalta(nshort_p_sta, nshort_s_sta, slrat, norm=1)
+                    obs_dataP_das, obs_dataS_das = sobj.loc_stalta(nshort_p_das, nshort_s_das, slrat, norm=1)
+
+                    print(obs_dataP_sta[1,:], obs_dataS_sta[1,:])
+
+
+
+
 
                 else:
+                    print('b')
                     # no need to calculate STA/LTA 
                     # directly stack the characteristic function for imaging
                     obs_dataP_sta = sobj.obs_dataV_sta  # vertical -> P
@@ -184,25 +208,45 @@ class Loki:
                     obs_dataS_das = sobj.obs_dataH_das  # horizontal -> S
 
                 if opsf:
-                    # output the characteristic functions for stacking
+
+                    print('c')
+
                     datainfo = {}
-                    datainfo['dt_sta'] = sobj.deltat_sta
-                    datainfo['starttime_sta'] = sobj.dtime_max_sta
-                    datainfo['dt_das'] = sobj.deltat_das
-                    datainfo['starttime_das'] = sobj.dtime_max_das
+                    datainfo['dt'] = sobj.deltat
+                    datainfo['starttime'] = sobj.dtime_max
                     for ista, sta in enumerate(sobj.stations):
+                        print('sta:', sta)
+                        print('ista:', ista)
                         datainfo['station_name'] = sta
                         datainfo['channel_name'] = 'CFP'  # note maximum three characters, the last one must be 'P'
                         ioformatting.vector2trace(datainfo, obs_dataP_sta[ista,:], self.output_path+'/'+event+'/cf/trial{}'.format(i))
                         datainfo['channel_name'] = 'CFS'  # note maximum three characters, the last one must be 'S'
                         ioformatting.vector2trace(datainfo, obs_dataS_sta[ista,:], self.output_path+'/'+event+'/cf/trial{}'.format(i))
+
+
+                    # output the characteristic functions for stacking
+                    #datainfo = {}
+                    #datainfo['dt_sta'] = sobj.deltat_sta
+                    #datainfo['dt_sta'] = sobj.deltat
+                    #datainfo['starttime_sta'] = sobj.dtime_max_sta
+                    #datainfo['starttime_sta'] = sobj.dtime_max
+                    #datainfo['dt_das'] = sobj.deltat_das
+                    #datainfo['dt_das'] = sobj.deltat
+                    #datainfo['starttime_das'] = sobj.dtime_max_das
+                    #datainfo['starttime_das'] = sobj.dtime_max
+                    #for ista, sta in enumerate(sobj.stations):
+                    #    datainfo['station_name'] = sta
+                    #    datainfo['channel_name'] = 'CFP'  # note maximum three characters, the last one must be 'P'
+                    #    ioformatting.vector2trace(datainfo, obs_dataP_sta[ista,:], self.output_path+'/'+event+'/cf/trial{}'.format(i))
+                    #    datainfo['channel_name'] = 'CFS'  # note maximum three characters, the last one must be 'S'
+                    #    ioformatting.vector2trace(datainfo, obs_dataS_sta[ista,:], self.output_path+'/'+event+'/cf/trial{}'.format(i))
  
-                    for ista, sta in enumerate(sobj.channels):
-                        datainfo['station_name'] = sta
-                        datainfo['channel_name'] = 'CFP'  # note maximum three characters, the last one must be 'P'
-                        ioformatting.vector2trace(datainfo, obs_dataP_das[ista,:], self.output_path+'/'+event+'/cf/trial{}'.format(i))
-                        datainfo['channel_name'] = 'CFS'  # note maximum three characters, the last one must be 'S'
-                        ioformatting.vector2trace(datainfo, obs_dataS_das[ista,:], self.output_path+'/'+event+'/cf/trial{}'.format(i))
+                    #for ista, sta in enumerate(sobj.channels):
+                    #    datainfo['station_name'] = sta
+                    #    datainfo['channel_name'] = 'CFP'  # note maximum three characters, the last one must be 'P'
+                    #    ioformatting.vector2trace(datainfo, obs_dataP_das[ista,:], self.output_path+'/'+event+'/cf/trial{}'.format(i))
+                    #    datainfo['channel_name'] = 'CFS'  # note maximum three characters, the last one must be 'S'
+                    #    ioformatting.vector2trace(datainfo, obs_dataS_das[ista,:], self.output_path+'/'+event+'/cf/trial{}'.format(i))
 
                 ######## pre-location plots ##############
 
@@ -267,7 +311,7 @@ class Loki:
 
                 #iloc, itime, corrmatrix = location_t0.stacking(itp, its, stalta_p, stalta_s, nproc)
 
-                stacking = location_t0_py.WaveformStacking(tobj, npr, tp_mod_sta, ts_mod_sta, obs_dataP_sta[:,:], obs_dataS_sta[:,:], obs_dataP_das[0:2,:], obs_dataS_das[0:2,:])
+                stacking = location_t0_py.WaveformStacking(tobj, sobj, npr, tp_mod_sta, ts_mod_sta, obs_dataP_sta[:,:], obs_dataS_sta[:,:], obs_dataP_das[0:2,:], obs_dataS_das[0:2,:])
                 iloc_sta, iloc_ch, iloc, itime, corrmatrix_sta, corrmatrix_ch, corrmatrix = stacking.locate_event()
                  
                 #save 

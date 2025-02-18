@@ -7,9 +7,9 @@ To call LOKI you need this file and make it executable (or call python)
 
 from loki.loki import Loki
 
-db_path = '/home/emanuele/data/emanuele/loki-das/Traveltimes/new'
+db_path = '/home/emanuele/data/emanuele/loki-das/Traveltimes/new2'
 data_path = '/home/emanuele/data/emanuele/loki-das/Data'
-output_path = '/home/emanuele/data/emanuele/loki-das/Traveltimes/new/output'
+output_path = '/home/emanuele/data/emanuele/loki-das/Traveltimes/new2/output'
 hdr_filename = 'header_long.hdr'
 geometry_filename_fiber = 'channels.dat'
 geometry_filename_stat = 'stations.dat'
@@ -19,7 +19,7 @@ inputs['tshortp_max'] = 0.1
 inputs['tshorts_min'] = 0.15
 inputs['tshorts_max'] = 0.15
 inputs['slrat'] = 2
-inputs['npr'] = 16
+inputs['npr'] = 2
 inputs['ntrial'] = 1
 inputs['derivative'] = True
 inputs['vfunc'] = 'erg'
