@@ -42,16 +42,19 @@ class Coordinates:
     '''
 
     def __init__(self,lat0,lon0,ele0=0):
+
         X0,Y0,Z0=self.geo2cart(lat0,lon0,ele0,geo2enu=False)
+        
         self.lat0=lat0
         self.lon0=lon0
         self.ele0=ele0
         self.X0=X0
         self.Y0=Y0
         self.Z0=Z0
+        print(self.lat0, self.lon0, self.ele0, self.X0, self.Y0, self.Z0)
         
         
-    def geo2cart(self,lat,lon,ele=0,geo2enu=True):
+    def geo2cart(self,lat,lon,ele=0,geo2enu=False):
         '''Conversion from Geographical LAT,LON,ELE(km) to Cartesian E,N,U (output in meters) frame'''
 
         lat*=_deg2rad
@@ -64,11 +67,15 @@ class Coordinates:
         Y=(N+ele)*num.cos(lat)*num.sin(lon)
         Z=((1-_eccentricity_squared)*N+ele)*num.sin(lat)
 
+        DX = X - self.X0
+        DY = Y - self.Y0
+        DZ = Z - self.Z0
+
         if geo2enu:
             E,N,U=self.__conv2enu(X,Y,Z)
             return E,N,U
         else:
-            return X,Y,Z
+            return DX,DY,DZ
 
 
     def __conv2enu(self,X,Y,Z):
@@ -83,6 +90,7 @@ class Coordinates:
         E=DY*num.cos(lon0rad)-DX*num.sin(lon0rad)
         N=DZ*num.cos(lat0rad)-DY*num.sin(lat0rad)*num.sin(lon0rad)-DX*num.sin(lat0rad)*num.cos(lon0rad)
         U=DZ*num.sin(lat0rad)+DY*num.cos(lat0rad)*num.sin(lon0rad)+DX*num.cos(lat0rad)*num.cos(lon0rad)
+
 
         return E,N,U
 

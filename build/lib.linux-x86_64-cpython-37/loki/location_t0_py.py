@@ -154,16 +154,16 @@ class WaveformStacking:
         #define all the relative location of the sensors (to the 0,0,0)
         #position the stations at the center of the investigated domain 
 
-        self.lon_stations_rel = (self.lon_stations - self.x0 )
-        self.lat_stations_rel = (self.lat_stations - self.y0 )
-        self.depth_stations_rel = self.depth_stations - self.z0
-        self.lon_channels_rel = (self.lon_channels -  self.x0)
-        self.lat_channels_rel = (self.lat_channels - self.y0) 
-        self.depth_channels_rel = self.depth_channels - self.z0
+        self.lon_stations_rel = (self.lon_stations) # - self.x0 )
+        self.lat_stations_rel = (self.lat_stations) # - self.y0 )
+        self.depth_stations_rel = (self.depth_stations) # - self.z0
+        self.lon_channels_rel = (self.lon_channels) # -  self.x0)
+        self.lat_channels_rel = (self.lat_channels) # - self.y0) 
+        self.depth_channels_rel = (self.depth_channels) # - self.z0
 
 
-        #print('lon stations rel', self.lon_stations_rel)
-        #print('lat stations rel', self.lat_stations_rel)
+        print('lon stations rel', self.lon_stations_rel)
+        print('lat stations rel', self.lat_stations_rel)
 
 
 
@@ -220,7 +220,7 @@ class WaveformStacking:
         corrmax = -1.0
         iloc, itime = 0, 0
 
-        progress_step = nxyz//1000 #10000 #nxyz // 300000  # 2% progress intervals
+        progress_step = nxyz//100 #10000 #nxyz // 300000  # 2% progress intervals
 
         # **Monitor outer loop**
         outer_start = time.time()

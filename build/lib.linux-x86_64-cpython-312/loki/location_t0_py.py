@@ -6,7 +6,7 @@ import time
 
 
 class WaveformStacking:
-    def __init__(self, sobj, tobj, nproc, ttp, tts, obsp_sta, obss_sta, obsp_ch, obss_ch):
+    def __init__(self, tobj, sobj, nproc, ttp, tts, obsp_sta, obss_sta, obsp_ch, obss_ch):
         required_attrs = ["nx", "nz", "dx", "dz", "lon_stations", "lat_stations", 
                           "depth_stations", "lon_channels", "lat_channels", "depth_channels"]
         for attr in required_attrs:
@@ -154,16 +154,16 @@ class WaveformStacking:
         #define all the relative location of the sensors (to the 0,0,0)
         #position the stations at the center of the investigated domain 
 
-        self.lon_stations_rel = (self.lon_stations - self.x0 )
-        self.lat_stations_rel = (self.lat_stations - self.y0 )
-        self.depth_stations_rel = self.depth_stations - self.z0
-        self.lon_channels_rel = (self.lon_channels -  self.x0)
-        self.lat_channels_rel = (self.lat_channels - self.y0) 
-        self.depth_channels_rel = self.depth_channels - self.z0
+        self.lon_stations_rel = (self.lon_stations) # - self.x0 )
+        self.lat_stations_rel = (self.lat_stations) # - self.y0 )
+        self.depth_stations_rel = (self.depth_stations) # - self.z0
+        self.lon_channels_rel = (self.lon_channels) # -  self.x0)
+        self.lat_channels_rel = (self.lat_channels) # - self.y0) 
+        self.depth_channels_rel = (self.depth_channels) # - self.z0
 
 
-        #print('lon stations rel', self.lon_stations_rel)
-        #print('lat stations rel', self.lat_stations_rel)
+        print('lon stations rel', self.lon_stations_rel)
+        print('lat stations rel', self.lat_stations_rel)
 
 
 
@@ -237,7 +237,7 @@ class WaveformStacking:
 
 
         #OUTHER LOOP ON THE GRID 
-        #nxyz = 1
+        nxyz = 1
         for i in range(0, nxyz):  # Limit loop for debugging
 
 
@@ -246,9 +246,10 @@ class WaveformStacking:
             
 
             loop_start = time.time()  # Start timer for outer loop iteration
-            #if i % progress_step == 0:
-                #print(f"Processing: {100 * i / nxyz:.6f}% completed")
-                #print(f"Processing: {10 * i / nxyz:.6f}% completed")
+            if i % progress_step == 0:
+                print(f"Processing: {100 * i / nxyz:.6f}% completed")
+                #
+                # print(f"Processing: {10 * i / nxyz:.6f}% completed")
 
             stkmax = -1.0
             kmax = 0
@@ -262,7 +263,21 @@ class WaveformStacking:
 
                 current_sta = self.stations[j]
 
-                print(current_sta)
+                #print(current_sta)
+
+                if current_sta[2] == '0':
+                    current_sta = num.int(current_sta[3]) -1
+                else:
+                    current_sta = num.int(current_sta[2:4]) -1
+
+                #print(current_sta)
+
+                #current_sta = num.int(current_sta[3:4]) - 1
+
+                #print('lon_sensors[current_sta]', lon_sensors[current_sta])
+                #print('lon_source[i]', self.lon_source[i])
+
+                #print(num.int(current_sta[3:4]))
 
 
                 a = 0
@@ -277,11 +292,11 @@ class WaveformStacking:
 
                 #print('current source', self.lon_source[i], self.lat_source[i], self.depth_source[i])            
 
-                current_horizontal_distance = num.sqrt(num.abs(lon_sensors[j]-self.lon_source[i])**2 + num.abs(lat_sensors[j]-self.lat_source[i])**2)
+                current_horizontal_distance = num.sqrt(num.abs(lon_sensors[current_sta]-self.lon_source[i])**2 + num.abs(lat_sensors[current_sta]-self.lat_source[i])**2)
 
                 #current_horizontal_distance = sensor_distances[j]
                 #print('current_horizontal_distance',current_horizontal_distance)
-                current_depth = num.abs(depth_sensors[j] - self.depth_source[i])
+                current_depth = num.abs(depth_sensors[current_sta] - self.depth_source[i])
                 #print('current_depth',current_depth)
 
                 #extract the traveltime 
@@ -320,7 +335,7 @@ class WaveformStacking:
                 for ip, is_ in zip(ip_range, is_range):
                     if is_ < nsamples:
 
-                        print(j)
+                        #print(j)
 
                         #print('ip', ip, 'is_', is_, 'j',j)   
                         stk0p[j,a] = stalta_p[j, ip]  

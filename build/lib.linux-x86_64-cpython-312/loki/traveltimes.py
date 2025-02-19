@@ -20,6 +20,8 @@ import sys
 import numpy as num
 import matplotlib.pyplot as plt
 from pyproj import Proj, transform
+import utm
+from loki import latlon2cart
 #import loki.latlon2cart as ll2c
 
 class Traveltimes:
@@ -44,6 +46,15 @@ class Traveltimes:
 
 #modify to read only two components (ny out, modify header)
 
+
+
+
+
+    def convert_to_utm(lat, lon, ref_lat=51.64, ref_lon=7.72):
+        ref_east, ref_north, _, _ = utm.from_latlon(ref_lat, ref_lon)
+        east, north, _, _ = utm.from_latlon(lat, lon)
+        return (east - ref_east) / 1000, (north - ref_north) / 1000
+
     def load_header(self):
 
         #this method loads information on the big 2D traveltime grid and 3D location grid 
@@ -58,7 +69,7 @@ class Traveltimes:
         lines = f.readlines()  #read header info 
         #here info on the big traveltime 2D grid 
         self.nx, self.nz = [ int(x)   for x in lines[0].split()]  #number of points on the grid
-        self.x0, self.y0, self.z0 = [ float(x) for x in lines[1].split()]  #starting point of the grid 
+        self.y0, self.x0, self.z0 = [ float(x) for x in lines[1].split()]  #starting point of the grid 
         self.dx, self.dz = [ float(x) for x in lines[2].split()]  #grid spacing
         self.lat0, self.lon0 = [ float(x) for x in lines[3].split()] #lat lon starting point 
         self.nttx, self.nttz=[ int(x)   for x in lines[4].split()] #traveltime points along distance and depth 
@@ -83,14 +94,30 @@ class Traveltimes:
         self.nxz=self.nx*self.nz 
         self.delta_das = 0.01  #
 
-        self.x0, self.y0 = transform(self.wgs84, self.utm33n, self.x0, self.y0)
-        self.x0 = self.x0*1e-3
-        self.y0 = self.y0*1e-3
+        #origin=latlon2cart.Coordinates(self.x0, self.y0,self.z0)
+
+
+        
+        
+
+
+        #self.x0, self.y0 = transform(self.wgs84, self.utm33n, self.x0, self.y0)
+        #self.x0 = self.x0*1e-3
+        #self.y0 = self.y0*1e-3
 
 
     def load_station_info(self): 
         
         #read information on the location grid and the stations 
+
+        origin=latlon2cart.Coordinates(self.lat0, self.lon0,self.z0)
+
+        print(origin.X0)
+
+        #self.x0 = origin.x0
+        #self.y0 = origin.y0
+        #self.z0 = 0
+
 
         self.stations_coordinates={}
         self.db_stations = []
@@ -106,12 +133,23 @@ class Traveltimes:
             # Check if the line has at least 3 columns to avoid errors
             if len(columns) >= 4:
                 self.db_stations.append(str(columns[0]))
-                lon_degr = float(columns[1])
-                lat_degr = float(columns[2])
-                lon_utm, lat_utm = transform(self.wgs84, self.utm33n, lon_degr, lat_degr)
-                self.lon_stations.append(lon_utm*1e-3 - self.lon0)
-                self.lat_stations.append(lat_utm*1e-3 - self.lat0)
-                self.depth_stations.append(float(columns[3]))
+                lon_degr = float(columns[2])
+                lat_degr = float(columns[1])
+                depth = float(columns[3])
+                print('a')
+                print(lon_degr,lat_degr,depth)
+                #late,lone,elev=origin.cart2geo(lon_degr,lat_degr,depth)
+                late,lone,elev = origin.geo2cart(lon_degr,lat_degr,ele=0,geo2enu=False)
+                
+                print(late,lone,elev)
+                self.lon_stations.append(lone)
+                self.lat_stations.append(late)
+                self.depth_stations.append(elev)
+
+                #lon_utm, lat_utm = transform(self.wgs84, self.utm33n, lon_degr, lat_degr)
+                #self.lon_stations.append(lon_utm*1e-3 - self.lon0)
+                #self.lat_stations.append(lat_utm*1e-3 - self.lat0)
+                #self.depth_stations.append(float(columns[3]))
 
                 self.stations_coordinates[str(columns[0])] = (self.lon_stations, self.lat_stations, self.depth_stations)
 
