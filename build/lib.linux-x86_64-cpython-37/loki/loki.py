@@ -102,9 +102,17 @@ class Loki:
 
 
         tp = tobj.load_traveltimes('P', model, precision) 
+
+
+
+        print('dimension of the tt', tp['HM00'].shape)
+
         ts = tobj.load_traveltimes('S', model, precision)
 
+
         
+
+
 
         #load id of stations, channels and their location 
     
@@ -117,6 +125,8 @@ class Loki:
         for event_path in self.data_tree:
 
             data_path = self.data_path
+
+            print('event path', event_path)
 
             #Reading the observed wavefields (stations and DAS)
 
@@ -318,9 +328,9 @@ class Loki:
 
    
                 # Step 2: Save the 3D array
-                num.save("array_3d_tot.npy", corrmatrix)
-                num.save("array_3d_sta.npy", corrmatrix_sta)
-                num.save("array_3d_fiber.npy", corrmatrix_ch)
+                num.save(event_path.rsplit("/", 1)[0] + "/" + event_path.rstrip("/").split("/")[-1] + "array_3d_tot.npy", corrmatrix)
+                num.save(event_path.rsplit("/", 1)[0] + "/" + event_path.rstrip("/").split("/")[-1] + "array_3d_sta.npy", corrmatrix_sta)
+                num.save(event_path.rsplit("/", 1)[0] + "/" + event_path.rstrip("/").split("/")[-1] + "array_3d_fiber.npy", corrmatrix_ch)
 
 
 

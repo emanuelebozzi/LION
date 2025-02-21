@@ -1,19 +1,27 @@
 import numpy as num
 import logging 
 import time 
+from pathlib import Path
 
 #logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s")
 
 
 class WaveformStacking:
+
+    #inizia la classe 
+
     def __init__(self, tobj, sobj, nproc, ttp, tts, obsp_sta, obss_sta, obsp_ch, obss_ch):
         required_attrs = ["nx", "nz", "dx", "dz", "lon_stations", "lat_stations", 
                           "depth_stations", "lon_channels", "lat_channels", "depth_channels"]
         for attr in required_attrs:
             if not hasattr(tobj, attr):
                 raise AttributeError(f"Missing required attribute: {attr} in tobj")
-            
+
+
+        #attributi 
+
         self.stations = sobj.stations
+        self.deltat = sobj.deltat
 
         self.nproc = nproc
         #traveltime table dimension
@@ -50,7 +58,7 @@ class WaveformStacking:
         self.depth_channels = num.array(tobj.depth_channels, dtype=float)*0.00001
 
 
-    def location_domain(self):
+    def location_domain(self):  #prende tutti gli attributi iniziali della classe 
 
         '''
         This function define the 3D grid location domain, starting from the 2D traveltime table 
@@ -162,15 +170,15 @@ class WaveformStacking:
         self.depth_channels_rel = (self.depth_channels) # - self.z0
 
 
-        print('lon stations rel', self.lon_stations_rel)
-        print('lat stations rel', self.lat_stations_rel)
+        #print('lon stations rel', self.lon_stations_rel)
+        #print('lat stations rel', self.lat_stations_rel)
 
 
 
     def get_closest_travel_time(self, horizontal_distance, depth_value, tt_table):
         start_time = time.time()  # Start timing to monitor the procedure 
         tt_2d = tt_table.reshape(self.nx, self.nz)  #reshape the traveltimes using nx and nz dimenisons 
-
+        #print(tt_2d[10,10])
         # Log the input values
         logging.debug(f"Computing travel time for Distance={horizontal_distance:.4f}, Depth={depth_value:.4f}")
 
@@ -179,19 +187,38 @@ class WaveformStacking:
         depth = num.arange(0, (self.nz * self.dz) -self.dz, self.dz)
 
         #identify where the current depth, horizontal distance are most symilar to the one the traveltime
-        
 
-        a = num.abs(horiz_dist - horizontal_distance)  
+        #print(horizontal_distance, depth_value)
+
+        a = num.abs(horiz_dist - horizontal_distance) 
+
         closest_x_idx = num.argmin(a)  
 
+        diffx = horiz_dist[closest_x_idx] - horizontal_distance
+
+        #print('diffx', diffx)
+
         c = num.abs(depth - depth_value)  
+
         closest_z_idx = num.argmin(c)  
+
+        #diffz = depth[closest_z_idx] - depth_value
+        #print('diffz', diffz)
+
+        #print('self.dx', self.dx)
+
+        ratiox = diffx/self.dx  #ratio between the distance of the closest point and the distance of the point of interest
+        dtt = tt_2d[closest_x_idx, closest_z_idx] - tt_2d[closest_x_idx-1, closest_z_idx]  #dtt between the closest point and the point of interest
+        diff_tt = dtt*ratiox #difference in travel time between the closest point and the point of interest
+        #travel_time = tt_2d[closest_x_idx, closest_z_idx] - diff_tt #if diff_tt is positive, the travel time is less than the closest point, otherwise is greater
+        travel_time = tt_2d[closest_x_idx, closest_z_idx]  #if diff_tt is positive, the travel time is less than the closest point, otherwise is greater
+
+        #print('current diff_tt', diff_tt)
+        #print('ratiox', ratiox)
+        #print('dtt', dtt)
+        #print('current travel time', travel_time)
         
-        #closest_x_idx = num.argmin(num.abs(horiz_dist - horizontal_distance))
-        #closest_z_idx = num.argmin(num.abs(depth - depth_value))
-        
-        #extract the traveltime associated to that horizontal distance-depth 
-        travel_time = tt_2d[closest_x_idx, closest_z_idx]
+
 
         end_time = time.time()  # End timing
         elapsed_time = end_time - start_time
@@ -237,7 +264,7 @@ class WaveformStacking:
 
 
         #OUTHER LOOP ON THE GRID 
-        #nxyz = 1
+        #nxyz = 10
         for i in range(0, nxyz):  # Limit loop for debugging
 
 
@@ -261,7 +288,12 @@ class WaveformStacking:
                         #LOOP ON THE STATIONS 
             for j in range(nsta):
 
+                #print('j', j)
+
                 current_sta = self.stations[j]
+
+
+                #print(lon_sensors, len(lon_sensors))
 
                 #print(current_sta)
 
@@ -271,6 +303,8 @@ class WaveformStacking:
                     current_sta = num.int(current_sta[2:4]) -1
 
                 #print(current_sta)
+
+                
 
                 #current_sta = num.int(current_sta[3:4]) - 1
 
@@ -297,7 +331,8 @@ class WaveformStacking:
                 #current_horizontal_distance = sensor_distances[j]
                 #print('current_horizontal_distance',current_horizontal_distance)
                 current_depth = num.abs(depth_sensors[current_sta] - self.depth_source[i])
-                #print('current_depth',current_depth)
+                #print('depth source',current_depth)
+
 
                 #extract the traveltime 
 
@@ -333,7 +368,9 @@ class WaveformStacking:
                 
 
                 for ip, is_ in zip(ip_range, is_range):
-                    if is_ < nsamples:
+
+                    if ip < nsamples and is_ < nsamples:
+                    #if is_ < nsamples:
 
                         #print(j)
 
