@@ -5,11 +5,11 @@
 # =============================================================================
 #
 #
-TRANS NONE
+#TRANS NONE
 # output filename root
 # (VGOUT <output file root>)
 # Layer 2DGrid
-VGOUT /home/emanuele/data/emanuele/loki-das/Traveltimes/new/layer
+VGOUT /home/emanuele/data/emanuele/loki-das/Traveltimes/new2/layer
 
 # wave type
 # (VGTYPE wave_type (P, S))
@@ -33,7 +33,10 @@ VGTYPE P
 #
 #
 # Layer 3DGrid (NOTE: num_grid_x must be = 2 for 2D grids)
-VGGRID 2 101 101 0.0 0.0 0.0  0.05 0.05 0.05  SLOW_LEN FLOAT
+
+#VGGRID 2 101 101 0.0 0.0 0.0  0.071 0.071 0.071  SLOW_LEN 
+
+VGGRID 2 101 101 0.0 0.0 0.0  0.071 0.071 0.071  SLOW_LEN 
 
 # -----------------------------------------------------------------------------
 # velocity model description
@@ -44,15 +47,15 @@ VGGRID 2 101 101 0.0 0.0 0.0  0.05 0.05 0.05  SLOW_LEN FLOAT
 #PROVA DAS  REGION
 # model layers (LAYER depth, Vp_top, Vp_grad, Vs_top, Vs_grad, p_top, p_grad)
 
-#LAYER   0.00   1.a80  0.0    0.9474  0.0   2.00   0.0
-#LAYER   0.08   3.10  0.0    1.6316  0.0   2.00   0.0
-#LAYER   0.48   4.00  0.0    2.1053  0.0   2.00   0.0
-#LAYER   1.58   4.40  0.0    2.3158  0.0   2.00   0.0	
+LAYER   0.00   1.80  0.0    0.9474  0.0   2.00   0.0
+LAYER   0.08   3.10  0.0    1.6316  0.0   2.00   0.0
+LAYER   0.48   4.00  0.0    2.1053  0.0   2.00   0.0
+LAYER   1.58   4.40  0.0    2.3158  0.0   2.00   0.0	
 
-LAYER  0.0  2.0 0.0 0.8 0.0 2.0 0.0
-LAYER  1.0  4.0 0.0 1.8 0.0 4.0 0.0
-LAYER  5.0  5.0 0.0 2.7 0.0 5.0 0.0
-LAYER  30.0 6.0 0.0 3.7 0.0 6.0 0.0
+#LAYER  0.0  2.0 0.0 0.8 0.0 2.0 0.0
+#LAYER  1.0  4.0 0.0 1.8 0.0 4.0 0.0
+#LAYER  5.0  5.0 0.0 2.7 0.0 5.0 0.0
+#LAYER  30.0 6.0 0.0 3.7 0.0 6.0 0.0
 
 #homogeneous model for  the moment 
 

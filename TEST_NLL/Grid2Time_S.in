@@ -9,7 +9,7 @@
 # (GTFILES <input file root> <output file root> wave_type (P, S))
 #
 # 2D
-GTFILES  /home/emanuele/data/emanuele/loki-das/Traveltimes/new/layer  /home/emanuele/data/emanuele/loki-das/Traveltimes/new/layer S 
+GTFILES  /home/emanuele/data/emanuele/loki-das/Traveltimes/new2/layer  /home/emanuele/data/emanuele/loki-das/Traveltimes/new2/layer S 
  
 
 # time grid modes
@@ -35,7 +35,7 @@ GTMODE GRID2D ANGLES_NO
 #    elev : km pos UP
 #
 
-GTSRCE HM01 LATLON 0 0  0.0 0.
+GTSRCE HM00 LATLON 0 0  0.0 0.
 
 
 

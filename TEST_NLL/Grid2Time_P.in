@@ -9,7 +9,7 @@
 # (GTFILES <input file root> <output file root> wave_type (P, S))
 #
 # 2D
-GTFILES  /home/emanuele/data/emanuele/loki-das/Traveltimes/new/layer /home/emanuele/data/emanuele/loki-das/Traveltimes/new/layer P 
+GTFILES  /home/emanuele/data/emanuele/loki-das/Traveltimes/new2/layer /home/emanuele/data/emanuele/loki-das/Traveltimes/new2/layer P 
 
 # time grid modes
 # (GTMODE grid_mode, angle_mode)
@@ -36,7 +36,7 @@ GTMODE GRID2D ANGLES_NO
 #    elev : km pos UP
 #
 
-GTSRCE HM01 LATLON 0 0  0.0 0. 
+GTSRCE HM00 LATLON 0 0  0.0 0. 
 
 # Podvin & Lecomte FD params
 # Podvin and Lemcomte, 1991, GJI, 105, 271-284.
