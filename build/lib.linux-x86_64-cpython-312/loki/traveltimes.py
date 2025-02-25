@@ -86,10 +86,15 @@ class Traveltimes:
         #the dimension of the traveltime table is the one driving the dimension of the grid
         #the traveltime table is the diagonal of the grid  (num.sqrt(2)), thus x,y,z are recontructed using the square root of 2
 
+        #self.x =  num.arange(0, (self.nx * self.dx)/num.sqrt(2) , (self.dx/num.sqrt(2)))  #define the grid search based on the 2D traveltime grid
+        #self.y =  num.arange(0, (self.nx * self.dx)/num.sqrt(2), (self.dx/num.sqrt(2) ))  #define the grid search based on the 2D traveltime grid
+        #self.z =  num.arange(0, (self.nz * self.dz), self.dz) #define the grid search based on the 2D traveltime grid
+        
         self.x =  num.arange(0, (self.nx * self.dx)/num.sqrt(2) , (self.dx/num.sqrt(2)))  #define the grid search based on the 2D traveltime grid
         self.y =  num.arange(0, (self.nx * self.dx)/num.sqrt(2), (self.dx/num.sqrt(2) ))  #define the grid search based on the 2D traveltime grid
         self.z =  num.arange(0, (self.nz * self.dz), self.dz) #define the grid search based on the 2D traveltime grid
         
+
         self.nxyz=self.nx*self.nx*self.nz #number of points 
         self.nxz=self.nx*self.nz 
         self.delta_das = 0.01  #
@@ -139,9 +144,9 @@ class Traveltimes:
                 print('a')
                 print(lon_degr,lat_degr,depth)
                 #late,lone,elev=origin.cart2geo(lon_degr,lat_degr,depth)
-                late,lone,elev = origin.geo2cart(lon_degr,lat_degr,ele=0,geo2enu=False)
+                lone,late,elev = origin.geo2cart(lat_degr, lon_degr,ele=0, relative=True, geo2enu=False)
                 
-                print(late,lone,elev)
+                print(lone,late,elev)
                 self.lon_stations.append(lone)
                 self.lat_stations.append(late)
                 self.depth_stations.append(elev)
@@ -152,7 +157,7 @@ class Traveltimes:
                 #self.depth_stations.append(float(columns[3]))
 
                 self.stations_coordinates[str(columns[0])] = (self.lon_stations, self.lat_stations, self.depth_stations)
-
+                
 
     def load_channel_info(self): 
 

@@ -52,7 +52,7 @@ class WaveformStacking:
 
         #adapt location of sensors to the dx-dz of the domain (to be fixed sistematically)
         
-        self.lon_stations = num.array(tobj.lon_stations, dtype=float) 
+        self.lon_stations = num.array(tobj.lon_stations, dtype=float) #change name, otherwise misleading (x,y,z)
         self.lat_stations = num.array(tobj.lat_stations, dtype=float) 
         self.depth_stations = num.array(tobj.depth_stations, dtype=float)
         #self.lon_channels = num.array(tobj.lon_channels, dtype=float)

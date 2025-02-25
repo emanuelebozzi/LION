@@ -15,7 +15,7 @@ from loki import stacktraces
 from loki import latlon2cart
 from loki import location_t0_py
 import tt_processing                       # C
-#import location_t0                         # C  for multiplying the P- and S-stacking values using this
+import location_t0                         # C  for multiplying the P- and S-stacking values using this
 #import location_t0_plus                   # C  for adding the P- and S-stacking values using this
 
 
@@ -102,9 +102,17 @@ class Loki:
 
 
         tp = tobj.load_traveltimes('P', model, precision) 
+
+
+
+        print('dimension of the tt', tp['HM00'].shape)
+
         ts = tobj.load_traveltimes('S', model, precision)
 
+
         
+
+
 
         #load id of stations, channels and their location 
     
@@ -117,6 +125,8 @@ class Loki:
         for event_path in self.data_tree:
 
             data_path = self.data_path
+
+            print('event path', event_path)
 
             #Reading the observed wavefields (stations and DAS)
 
@@ -311,16 +321,22 @@ class Loki:
 
                 #iloc, itime, corrmatrix = location_t0.stacking(itp, its, stalta_p, stalta_s, nproc)
 
-                stacking = location_t0_py.WaveformStacking(tobj, sobj, npr, tp_mod_sta, ts_mod_sta, obs_dataP_sta[:,:], obs_dataS_sta[:,:], obs_dataP_das[0:2,:], obs_dataS_das[0:2,:])
-                iloc_sta, iloc_ch, iloc, itime, corrmatrix_sta, corrmatrix_ch, corrmatrix = stacking.locate_event()
+                #stacking = location_t0_py.WaveformStacking(tobj, sobj, npr, tp_mod_sta, ts_mod_sta, obs_dataP_sta[:,:], obs_dataS_sta[:,:], obs_dataP_das[0:2,:], obs_dataS_das[0:2,:])
+                #iloc_sta, iloc_ch, iloc, itime, corrmatrix_sta, corrmatrix_ch, corrmatrix = stacking.locate_event()
                  
+                x_stations = num.array(tobj.lon_stations, dtype=float) #change name, otherwise misleading (x,y,z)
+                y_stations = num.array(tobj.lat_stations, dtype=float) 
+                z_stations = num.array(tobj.depth_stations, dtype=float)
+
+                corrmatrix = location_t0.stacking(tp_mod_sta, ts_mod_sta, x_stations, y_stations, z_stations, tobj.x, tobj.y, tobj.z, obs_dataP_sta, obs_dataS_sta, npr)
+ 
                 #save 
 
    
                 # Step 2: Save the 3D array
-                num.save("array_3d_tot.npy", corrmatrix)
-                num.save("array_3d_sta.npy", corrmatrix_sta)
-                num.save("array_3d_fiber.npy", corrmatrix_ch)
+                num.save(event_path.rsplit("/", 1)[0] + "/" + event_path.rstrip("/").split("/")[-1] + "array_3d_tot.npy", corrmatrix)
+                num.save(event_path.rsplit("/", 1)[0] + "/" + event_path.rstrip("/").split("/")[-1] + "array_3d_sta.npy", corrmatrix)
+                num.save(event_path.rsplit("/", 1)[0] + "/" + event_path.rstrip("/").split("/")[-1] + "array_3d_fiber.npy", corrmatrix)
 
 
 

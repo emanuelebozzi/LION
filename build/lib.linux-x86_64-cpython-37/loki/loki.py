@@ -15,7 +15,7 @@ from loki import stacktraces
 from loki import latlon2cart
 from loki import location_t0_py
 import tt_processing                       # C
-#import location_t0                         # C  for multiplying the P- and S-stacking values using this
+import location_t0                         # C  for multiplying the P- and S-stacking values using this
 #import location_t0_plus                   # C  for adding the P- and S-stacking values using this
 
 
@@ -321,16 +321,76 @@ class Loki:
 
                 #iloc, itime, corrmatrix = location_t0.stacking(itp, its, stalta_p, stalta_s, nproc)
 
-                stacking = location_t0_py.WaveformStacking(tobj, sobj, npr, tp_mod_sta, ts_mod_sta, obs_dataP_sta[:,:], obs_dataS_sta[:,:], obs_dataP_das[0:2,:], obs_dataS_das[0:2,:])
-                iloc_sta, iloc_ch, iloc, itime, corrmatrix_sta, corrmatrix_ch, corrmatrix = stacking.locate_event()
+                #stacking = location_t0_py.WaveformStacking(tobj, sobj, npr, tp_mod_sta, ts_mod_sta, obs_dataP_sta[:,:], obs_dataS_sta[:,:], obs_dataP_das[0:2,:], obs_dataS_das[0:2,:])
+                #iloc_sta, iloc_ch, iloc, itime, corrmatrix_sta, corrmatrix_ch, corrmatrix = stacking.locate_event()
                  
+                x_stations_tot = num.array(tobj.lon_stations, dtype=float) #change name, otherwise misleading (x,y,z)
+                y_stations_tot = num.array(tobj.lat_stations, dtype=float) 
+                z_stations_tot = num.array(tobj.depth_stations, dtype=float)
+
+
+                tp_mod_sta = tp_mod_sta.reshape(tobj.nx,tobj.nz)
+                ts_mod_sta = ts_mod_sta.reshape(tobj.nx,tobj.nz)
+
+                nsta = len(obs_dataP_sta[:, 1])
+                nch = len(obs_dataP_das[:, 1])
+                
+                x_stations =[]
+                y_stations =[]
+                z_stations =[]
+
+                x_channels =[]
+                y_channels = []
+                z_channels=[]
+
+            #LOOP ON THE STATIONS 
+                for j in range(nsta):
+
+                    current_sta = sobj.stations[j]
+                    
+
+                    if current_sta[2] == '0':
+                        current_sta = num.int(current_sta[3]) -1
+                    else:
+                        current_sta = num.int(current_sta[2:4]) -1
+
+                 #for j in range(nch):
+
+                 #   current_ch = sobj.channels[j]
+
+
+                  #  if current_ch[2] == '0':
+                  #      current_ch = num.int(current_ch[3]) -1
+                  #  else:
+                  #      current_ch = num.int(current_ch[2:4]) -1
+
+                    
+                    x_stations.append(x_stations_tot[current_sta])
+                    y_stations.append(y_stations_tot[current_sta])
+                    z_stations.append(z_stations_tot[current_sta])
+
+                x_stations = num.array(x_stations, dtype=float)
+                y_stations = num.array(y_stations, dtype=float)
+                z_stations = num.array(z_stations, dtype=float)
+
+                #x_channels.append(x_stations_tot[current_ch])
+                #y_channels.append(y_stations_tot[current_ch])
+                #z_channels.append(z_stations_tot[current_ch])
+
+                print(x_stations, y_stations, z_stations)
+                print(tobj.x,tobj.y,tobj.z)
+                print(tp_mod_sta.shape, ts_mod_sta.shape, x_stations.shape, y_stations.shape, z_stations.shape, tobj.x.shape, tobj.y.shape, tobj.z.shape, obs_dataP_sta.shape, obs_dataS_sta.shape, npr)
+
+
+                corrmatrix = location_t0.stacking(tp_mod_sta, ts_mod_sta, x_stations, y_stations, z_stations, tobj.x, tobj.y, tobj.z, obs_dataP_sta, obs_dataS_sta, npr)
+ 
                 #save 
 
    
                 # Step 2: Save the 3D array
                 num.save(event_path.rsplit("/", 1)[0] + "/" + event_path.rstrip("/").split("/")[-1] + "array_3d_tot.npy", corrmatrix)
-                num.save(event_path.rsplit("/", 1)[0] + "/" + event_path.rstrip("/").split("/")[-1] + "array_3d_sta.npy", corrmatrix_sta)
-                num.save(event_path.rsplit("/", 1)[0] + "/" + event_path.rstrip("/").split("/")[-1] + "array_3d_fiber.npy", corrmatrix_ch)
+                num.save(event_path.rsplit("/", 1)[0] + "/" + event_path.rstrip("/").split("/")[-1] + "array_3d_sta.npy", corrmatrix)
+                num.save(event_path.rsplit("/", 1)[0] + "/" + event_path.rstrip("/").split("/")[-1] + "array_3d_fiber.npy", corrmatrix)
 
 
 

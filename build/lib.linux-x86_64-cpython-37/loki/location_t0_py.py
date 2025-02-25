@@ -21,6 +21,7 @@ class WaveformStacking:
         #attributi 
 
         self.stations = sobj.stations  #id_stations 
+        #self.channels = sobj.channels  #id_stations 
         self.deltat = sobj.deltat      #sampling rate 
 
         self.nproc = nproc
@@ -44,18 +45,19 @@ class WaveformStacking:
         #observed waveform stations
         self.obsp_sta = obsp_sta
         self.obss_sta = obss_sta
+
         #observed waveform fiber 
         #self.obsp_ch = obsp_ch
         #self.obss_ch = obss_ch
 
         #adapt location of sensors to the dx-dz of the domain (to be fixed sistematically)
         
-        self.lon_stations = num.array(tobj.lon_stations, dtype=float) 
+        self.lon_stations = num.array(tobj.lon_stations, dtype=float) #change name, otherwise misleading (x,y,z)
         self.lat_stations = num.array(tobj.lat_stations, dtype=float) 
         self.depth_stations = num.array(tobj.depth_stations, dtype=float)
-        #self.lon_channels = num.array(tobj.lon_channels, dtype=float)*0.00001
-        #self.lat_channels = num.array(tobj.lat_channels, dtype=float)*0.00001
-        #self.depth_channels = num.array(tobj.depth_channels, dtype=float)*0.00001
+        #self.lon_channels = num.array(tobj.lon_channels, dtype=float)
+        #self.lat_channels = num.array(tobj.lat_channels, dtype=float)
+        #self.depth_channels = num.array(tobj.depth_channels, dtype=float)
 
 
     def location_domain(self):  #prende tutti gli attributi iniziali della classe 
@@ -69,24 +71,20 @@ class WaveformStacking:
 
         #define the current extension of the sensors on x,y,z (necessary for relative location)
 
-        extx_sub = num.abs(self.lon_stations.min() - self.lon_stations.max())
-        exty_sub = num.abs(self.lat_stations.min() - self.lat_stations.max())
+        #extx_sub = num.abs(self.lon_stations.min() - self.lon_stations.max())
+        #exty_sub = num.abs(self.lat_stations.min() - self.lat_stations.max())
 
-        extx_sub = extx_sub 
-        exty_sub = extx_sub
+        #extx_sub = extx_sub 
+        #exty_sub = extx_sub
 
         #define the current extension of the traveltime domain 
-        extx_tt = (self.nx * self.dx)
-        extz_tt = (self.nz * self.dz)
+        #extx_tt = (self.nx * self.dx)
+        #extz_tt = (self.nz * self.dz)
         
         #define the definitive dimension of the location domain 
-        extx = num.max(self.x)  #extx_tt / num.sqrt(2)
-        exty = num.max(self.x)  #extx_tt / num.sqrt(2)
-        extz = num.max(self.z)  #extz_tt
-
-        #loc_model = nxyz.reshape(self.nx, self.nx, self.nz)
-
-        print('i am here 1')
+        #extx = num.max(self.x)  #extx_tt / num.sqrt(2)
+        #exty = num.max(self.x)  #extx_tt / num.sqrt(2)
+        #extz = num.max(self.z)  #extz_tt
 
         # Generate grid coordinates
         x_vals = self.x
@@ -113,12 +111,6 @@ class WaveformStacking:
         self.lat_source = self.Y.ravel()
         self.depth_source = self.Z.ravel()
 
-
-        # Flatten the grids to create 1D arrays for sources
-        #self.lon_source = ((X * self.nx/num.sqrt(2)).flatten())*self.dx/num.sqrt(2)*self.dx/num.sqrt(2)*self.dx/num.sqrt(2)
-        #self.lat_source = ((Y * self.nx/num.sqrt(2)).flatten())*self.dx/num.sqrt(2)*self.dx/num.sqrt(2)*self.dx/num.sqrt(2)
-        #self.depth_source = ((Z * self.nz/num.sqrt(2)).flatten())*self.dz/num.sqrt(2)*self.dz/num.sqrt(2)*self.dz/num.sqrt(2)
-
         #print(len(x_vals), len(y_vals), len(z_vals), len(self.lon_source))
         #print(self.lon_source)
 
@@ -133,26 +125,20 @@ class WaveformStacking:
 
 
         #difference between the domain spanned by the sensors and the location domain 
-        self.diff_subx = extx - extx_sub
-        self.diff_suby = exty - exty_sub
-        #diff_subz = extz - extz_sub
+        #self.diff_subx = extx - extx_sub
+        #self.diff_suby = exty - exty_sub
 
 
-        #print('diff',extx_sub, exty_sub, extx_tt, extz_tt, self.diff_subx, self.diff_suby)
-        
         #define all the relative location of the sensors (to the 0,0,0)
         #position the stations at the center of the investigated domain 
 
-        self.lon_stations_rel = (self.lon_stations) # - self.x0 )
-        self.lat_stations_rel = (self.lat_stations) # - self.y0 )
-        self.depth_stations_rel = (self.depth_stations) # - self.z0
-        #self.lon_channels_rel = (self.lon_channels) # -  self.x0)
-        #self.lat_channels_rel = (self.lat_channels) # - self.y0) 
-        #self.depth_channels_rel = (self.depth_channels) # - self.z0
+        self.lon_stations_rel = self.lon_stations 
+        self.lat_stations_rel = self.lat_stations 
+        self.depth_stations_rel = self.depth_stations
+        #self.lon_channels_rel = self.lon_channels 
+        #self.lat_channels_rel = self.lat_channels
+        #self.depth_channels_rel = self.depth_channels
 
-
-        #print('lon stations rel', self.lon_stations_rel)
-        #print('lat stations rel', self.lat_stations_rel)
 
 
 
@@ -186,8 +172,14 @@ class WaveformStacking:
         ratiox = diffx/self.dx  #ratio between the distance of the closest point and the distance of the point of interest
         dtt = tt_2d[closest_x_idx, closest_z_idx] - tt_2d[closest_x_idx-1, closest_z_idx]  #dtt between the closest point and the point of interest
         diff_tt = dtt*ratiox #difference in travel time between the closest point and the point of interest
-        #travel_time = tt_2d[closest_x_idx, closest_z_idx] - diff_tt #if diff_tt is positive, the travel time is less than the closest point, otherwise is greater
-        travel_time = tt_2d[closest_x_idx, closest_z_idx]  #if diff_tt is positive, the travel time is less than the closest point, otherwise is greater
+        
+        #interpolation 
+
+        travel_time = tt_2d[closest_x_idx, closest_z_idx] - diff_tt #if diff_tt is positive, the travel time is less than the closest point, otherwise is greater
+        
+        #no interpolation
+        
+        #travel_time = tt_2d[closest_x_idx, closest_z_idx]  #if diff_tt is positive, the travel time is less than the closest point, otherwise is greater
 
         end_time = time.time()  # End timing
         elapsed_time = end_time - start_time
@@ -198,7 +190,7 @@ class WaveformStacking:
         return horiz_dist, depth, closest_x_idx, closest_z_idx, travel_time
     
 
-    def stacking(self, lon_sensors, lat_sensors, depth_sensors, itp, its, stalta_p, stalta_s):
+    def stacking(self, lon_sensors, lat_sensors, depth_sensors, itp, its, stalta_p, stalta_s, sensor = 'stations'):
 
         """Function stacking energy along predicted travel times."""
         
@@ -242,18 +234,22 @@ class WaveformStacking:
             #LOOP ON THE STATIONS 
             for j in range(nsta):
 
-                current_sta = self.stations[j]
+                #this is highly dependent on the format of the stations (it works now but not)
 
+                if sensor == 'stations':
+                    current_sta = self.stations[j]
+
+                if sensor == 'fiber':
+                    current_sta = self.channels[j]
 
                 if current_sta[2] == '0':
                     current_sta = num.int(current_sta[3]) -1
                 else:
                     current_sta = num.int(current_sta[2:4]) -1
 
-                a = 0
+                
          
                 current_horizontal_distance = num.sqrt(num.abs(lon_sensors[current_sta]-self.lon_source[i])**2 + num.abs(lat_sensors[current_sta]-self.lat_source[i])**2)
-
                 current_depth = num.abs(depth_sensors[current_sta] - self.depth_source[i])
 
                 #extract the traveltime 
@@ -278,10 +274,10 @@ class WaveformStacking:
                 ip_range = range(ttp_val, ttp_val + nsamples)
                 is_range = range(tts_val, tts_val + nsamples)
                 
-
                 #stack for each station and time  
-                
 
+                a = 0 #initialize a counter for samples  
+                
                 for ip, is_ in zip(ip_range, is_range):
 
                     if ip < nsamples and is_ < nsamples:
@@ -296,7 +292,7 @@ class WaveformStacking:
                         stk0s[j,a] = 0
                         a = a +1
 
-
+            #stack the contribution from all the stations
             stk0p_sta = num.sum(stk0p, axis=0)
             stk0s_sta = num.sum(stk0s, axis=0)
 
@@ -306,6 +302,8 @@ class WaveformStacking:
                 if stk0p_sta[k]*stk0s_sta[k] > stkmax:
                     stkmax = stk0p_sta[k]*stk0s_sta[k]
                     kmax = k 
+
+            #normalize the correlation matrix
                     
             corrmatrix[i] = num.sqrt(stkmax) / nsta
 
@@ -337,25 +335,34 @@ class WaveformStacking:
         self.location_domain()
         print("Location domain set up.")
 
-        #corrmatrix stations-fiber 
+        #corrmatrix stations
 
-        iloc_sta, corrmatrix_sta = self.stacking(self.lon_stations_rel, self.lat_stations_rel, self.depth_stations_rel, self.ttp, self.tts, self.obsp_sta, self.obss_sta)
+        iloc_sta, corrmatrix_sta = self.stacking(self.lon_stations_rel, self.lat_stations_rel, self.depth_stations_rel, self.ttp, self.tts, self.obsp_sta, self.obss_sta, sensor = 'stations')
         
-        #iloc_ch, corrmatrix_ch = self.stacking(self.lon_channels_rel, self.lat_channels_rel, self.depth_channels_rel, self.ttp, self.tts, self.obsp_ch, self.obss_ch)
+        itime_sta = (iloc_sta[1] + iloc_sta[1]) / 2
+
+        corrmatrix_sta = corrmatrix_sta 
+
+        #corrmatrix fiber
+
+        #iloc_ch, corrmatrix_ch = self.stacking(self.lon_channels_rel, self.lat_channels_rel, self.depth_channels_rel, self.ttp, self.tts, self.obsp_ch, self.obss_ch, sensor = 'fiber')
+       
+        #itime_ch = (iloc_ch[1] + iloc_ch[1]) / 2
+
+        #corrmatrix_ch = corrmatrix_ch  
+
         
+        #hybrid network results 
 
-        #iloc = (iloc_sta[0] + iloc_ch[0]) / 2
-        #itime = (iloc_sta[1] + iloc_ch[1]) / 2
+        #iloc_hybrid = (iloc_sta[0] + iloc_ch[0]) / 2
+        #itime_hybrid = (iloc_sta[1] + iloc_ch[1]) / 2
+        #corrmatrix_hybrid = (corrmatrix_sta + corrmatrix_ch) / 2
 
-        itime = (iloc_sta[1] + iloc_sta[1]) / 2
-
-        #hybrid corrmatrix 
-        #corrmatrix = (corrmatrix_sta + corrmatrix_ch) / 2
-        corrmatrix = corrmatrix_sta 
 
         print("Event located successfully!")
 
-        #return iloc_sta, iloc_ch, iloc, itime, corrmatrix_sta.reshape(self.nx, self.nx, self.nz), corrmatrix_ch.reshape(self.nx, self.nx, self.nz), corrmatrix.reshape((self.nx, self.nx, self.nz))
-        return iloc_sta, iloc_sta, iloc_sta, itime, corrmatrix_sta.reshape(self.nx, self.nx, self.nz), corrmatrix.reshape(self.nx, self.nx, self.nz), corrmatrix.reshape(self.nx, self.nx, self.nz)
+        #return iloc_sta, iloc_ch, itime_sta, iloc_ch, iloc_hybrid, itime_hybrid, corrmatrix_sta.reshape(self.nx, self.nx, self.nz), corrmatrix_ch.reshape(self.nx, self.nx, self.nz), corrmatrix_hybrid.reshape((self.nx, self.nx, self.nz))
+        
+        return iloc_sta, iloc_sta, iloc_sta, itime_sta, corrmatrix_sta.reshape(self.nx, self.nx, self.nz), corrmatrix_sta.reshape(self.nx, self.nx, self.nz), corrmatrix_sta.reshape(self.nx, self.nx, self.nz)
 
 

@@ -2,7 +2,7 @@ import numpy as num
 
 _deg2rad = num.pi / 180.0
 _rad2deg = 180.0 / num.pi
-_km2m = 1000
+_km2m = 0
 _semi_major_axis = 6378137.000000
 _semi_minor_axis = 6356752.314245
 _eccentricity_squared = 1 - (_semi_minor_axis/_semi_major_axis)**2
@@ -43,7 +43,7 @@ class Coordinates:
 
     def __init__(self,lat0,lon0,ele0=0):
 
-        X0,Y0,Z0=self.geo2cart(lat0,lon0,ele0,geo2enu=False)
+        X0,Y0,Z0=self.geo2cart(lat0,lon0,ele0,relative = False, geo2enu=False)
         
         self.lat0=lat0
         self.lon0=lon0
@@ -51,10 +51,10 @@ class Coordinates:
         self.X0=X0
         self.Y0=Y0
         self.Z0=Z0
-        print(self.lat0, self.lon0, self.ele0, self.X0, self.Y0, self.Z0)
+        print(self.lon0, self.lat0, self.ele0, self.X0, self.Y0, self.Z0)
         
         
-    def geo2cart(self,lat,lon,ele=0,geo2enu=False):
+    def geo2cart(self,lat,lon,ele=0,relative = True, geo2enu=False):
         '''Conversion from Geographical LAT,LON,ELE(km) to Cartesian E,N,U (output in meters) frame'''
 
         lat*=_deg2rad
@@ -63,13 +63,27 @@ class Coordinates:
 
         N=_semi_major_axis/num.sqrt(1-_eccentricity_squared*(num.sin(lat)**2))
         
-        X=(N+ele)*num.cos(lat)*num.cos(lon)
-        Y=(N+ele)*num.cos(lat)*num.sin(lon)
-        Z=((1-_eccentricity_squared)*N+ele)*num.sin(lat)
+        #X=(N+ele)*num.cos(lat)*num.cos(lon)  #it is actually the opposite
+        #Y=(N+ele)*num.cos(lat)*num.sin(lon)
+        Y=(N+ele)*num.cos(lat)*num.cos(lon)  
+        X=(N+ele)*num.cos(lat)*num.sin(lon)
+        #Z=((1-_eccentricity_squared)*N+ele)*num.sin(lat)
+        Z = ele
 
-        DX = X - self.X0
-        DY = Y - self.Y0
-        DZ = Z - self.Z0
+        print('X,Y,Z', X,Y,Z)
+
+
+        if relative: 
+
+            DX = num.abs(X - self.X0)*1e-3
+            DY = num.abs(Y - self.Y0)*1e-3
+            DZ = num.abs(Z - self.Z0)*1e-3
+
+        else: 
+
+            DX = X
+            DY = Y
+            DZ = Z
 
         if geo2enu:
             E,N,U=self.__conv2enu(X,Y,Z)

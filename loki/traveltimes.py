@@ -86,10 +86,15 @@ class Traveltimes:
         #the dimension of the traveltime table is the one driving the dimension of the grid
         #the traveltime table is the diagonal of the grid  (num.sqrt(2)), thus x,y,z are recontructed using the square root of 2
 
-        self.x =  num.arange(0, (self.nx * self.dx)/num.sqrt(2) , (self.dx/num.sqrt(2)))  #define the grid search based on the 2D traveltime grid
-        self.y =  num.arange(0, (self.nx * self.dx)/num.sqrt(2), (self.dx/num.sqrt(2) ))  #define the grid search based on the 2D traveltime grid
+        #self.x =  num.arange(0, (self.nx * self.dx)/num.sqrt(2) , (self.dx/num.sqrt(2)))  #define the grid search based on the 2D traveltime grid
+        #self.y =  num.arange(0, (self.nx * self.dx)/num.sqrt(2), (self.dx/num.sqrt(2) ))  #define the grid search based on the 2D traveltime grid
+        #self.z =  num.arange(0, (self.nz * self.dz), self.dz) #define the grid search based on the 2D traveltime grid
+        
+        self.x =  num.arange(0, (self.nx * self.dx) , (self.dx))  #define the grid search based on the 2D traveltime grid
+        self.y =  num.arange(0, (self.nx * self.dx), (self.dx))  #define the grid search based on the 2D traveltime grid
         self.z =  num.arange(0, (self.nz * self.dz), self.dz) #define the grid search based on the 2D traveltime grid
         
+
         self.nxyz=self.nx*self.nx*self.nz #number of points 
         self.nxz=self.nx*self.nz 
         self.delta_das = 0.01  #
