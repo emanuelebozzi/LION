@@ -380,13 +380,35 @@ class Loki:
                 print(x_stations, y_stations, z_stations)
                 print(tobj.x,tobj.y,tobj.z)
                 print(tp_mod_sta.shape, ts_mod_sta.shape, x_stations.shape, y_stations.shape, z_stations.shape, tobj.x.shape, tobj.y.shape, tobj.z.shape, obs_dataP_sta.shape, obs_dataS_sta.shape, npr)
+                print(tp_mod_sta.dtype, ts_mod_sta.dtype, x_stations.dtype, y_stations.dtype, z_stations.dtype, tobj.x.dtype, tobj.y.dtype, tobj.z.dtype, obs_dataP_sta.dtype, obs_dataS_sta.dtype, npr)
 
-
-                corrmatrix = location_t0.stacking(tp_mod_sta, ts_mod_sta, x_stations, y_stations, z_stations, tobj.x, tobj.y, tobj.z, obs_dataP_sta, obs_dataS_sta, npr)
- 
                 #save 
+                # Ensure inputs are contiguous and have the correct types
+                tp_mod_sta = num.ascontiguousarray(tp_mod_sta, dtype=num.int32)
+                ts_mod_sta = num.ascontiguousarray(ts_mod_sta, dtype=num.int32)
+                x_stations = num.ascontiguousarray(x_stations, dtype=num.float64)
+                y_stations = num.ascontiguousarray(y_stations, dtype=num.float64)
+                z_stations = num.ascontiguousarray(z_stations, dtype=num.float64)
+                tobj_x = num.ascontiguousarray(tobj.x, dtype=num.float64)
+                tobj_y = num.ascontiguousarray(tobj.y, dtype=num.float64)
+                tobj_z = num.ascontiguousarray(tobj.z, dtype=num.float64)
+                obs_dataP_sta = num.ascontiguousarray(obs_dataP_sta, dtype=num.float64)
+                obs_dataS_sta = num.ascontiguousarray(obs_dataS_sta, dtype=num.float64)
+                
+                print(tp_mod_sta.flags['C_CONTIGUOUS'])  # True if C-contiguous)
+                print(ts_mod_sta.flags['C_CONTIGUOUS'])  # True if C-contiguous)
+                print(x_stations.flags['C_CONTIGUOUS'])  # True if C-contiguous)
+                print(y_stations.flags['C_CONTIGUOUS'])  # True if C-contiguous)
+                print(z_stations.flags['C_CONTIGUOUS'])  # True if C-contiguous)
+                print(tobj_x.flags['C_CONTIGUOUS'])  # True if C-contiguous)
+                print(tobj_y.flags['C_CONTIGUOUS'])  # True if C-contiguous)
+                print(tobj_z.flags['C_CONTIGUOUS'])  # True if C-contiguous)
+                print(obs_dataP_sta.flags['C_CONTIGUOUS'])  # True if C-contiguous)
+                print(obs_dataS_sta.flags['C_CONTIGUOUS'])  # True if C-contiguous)
 
-   
+                itime, corrmatrix = location_t0.stacking(tp_mod_sta, ts_mod_sta, x_stations, y_stations, z_stations, tobj_x, tobj_y, tobj_z, obs_dataP_sta, obs_dataS_sta, npr)
+ 
+
                 # Step 2: Save the 3D array
                 num.save(event_path.rsplit("/", 1)[0] + "/" + event_path.rstrip("/").split("/")[-1] + "array_3d_tot.npy", corrmatrix)
                 num.save(event_path.rsplit("/", 1)[0] + "/" + event_path.rstrip("/").split("/")[-1] + "array_3d_sta.npy", corrmatrix)
