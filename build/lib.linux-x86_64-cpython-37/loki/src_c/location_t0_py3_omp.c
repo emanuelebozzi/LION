@@ -207,13 +207,13 @@ int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny
 
             printf("\b\b\b\b\b%ld %%", (100 * iter++) / (nxyz - 2));
 
-            printf("i = %li", i);
+            /*printf("i = %li", i);*/
     
             ix = i / ((ny) * (nz));   // X index increments 
             iy = (i / (nz)) % ny;     // Y index increments 
             iz = (i % (nz));      // Z index increments
     
-            printf("ix = %d, iy = %d, iz = %d\n", ix, iy, iz);
+            /*printf("ix = %d, iy = %d, iz = %d\n", ix, iy, iz);*/
     
          stkmax=-1.0;
          kmax= 0;
@@ -246,10 +246,11 @@ int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny
            zdist_ind = (int)floor(zdist / dz);
            /*printf("zdist_ind = %d", zdist_ind);*/
 
-            if (rdist_ind > 100) {
-            rdist_ind = 100; }
-            if (zdist_ind > 100) {
-               zdist_ind = 100; }
+           if (rdist_ind > nx-1) {
+            rdist_ind = (int)(nx-1); }
+            if (zdist_ind > nz-1) {
+               zdist_ind = (int)(nz-1); }
+               
            /*printf("rdist_ind = %d ", rdist_ind);*/
            /*printf("zdist_ind = %d", zdist_ind);*/
            tp[j] = itp[rdist_ind][zdist_ind];
@@ -280,7 +281,7 @@ int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny
        }
         corrmatrix[i]=sqrt(stkmax)/((float) nsta);
 
-        printf("corrmatrix = %lf\n", corrmatrix[i]);
+        /*printf("corrmatrix = %lf\n", corrmatrix[i]);*/
 
         #pragma omp critical
         if (corrmatrix[i]>corrmax){
