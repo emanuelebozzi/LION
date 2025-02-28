@@ -68,6 +68,8 @@ class Stacktraces:
             # normal input, input 1- or 3-component data for calculating characteristic
             # function later
             self.comp=tuple((wobj.stream).keys())
+            print('comp number:', self.comp)
+            print(len(self.comp))
             if len(self.comp)==3:
                 self.xtr=self.select_data(self.comp[0], wobj, tobj.db_stations, derivative, normalize)
                 self.ytr=self.select_data(self.comp[1], wobj, tobj.db_stations, derivative, normalize)
@@ -127,20 +129,25 @@ class Stacktraces:
         return (tp_mod, ts_mod)
 
     def characteristic_function(self, vfunc='erg', hfunc='pca', epsilon=0.001):
-        if vfunc=='erg' and hfunc=='pca':
+        if len(self.comp)==1: 
             self.cfunc_erg(True)
-            self.cfunc_pca(epsilon)
-        elif vfunc=='pca' and hfunc=='pca':
-            self.cfunc_pcafull(epsilon)
-        elif vfunc=='erg' and hfunc=='erg':
-            self.cfunc_erg(False)
-        elif vfunc=='erg' and hfunc=='null':
-            self.cfunc_erg(True)
+
         else:
-            print('wrong characterstic functions, energy used as default')
-            self.cfunc_erg(False)
+            if vfunc=='erg' and hfunc=='pca':
+                self.cfunc_erg(True)
+                self.cfunc_pca(epsilon)
+            elif vfunc=='pca' and hfunc=='pca':
+                self.cfunc_pcafull(epsilon)
+            elif vfunc=='erg' and hfunc=='erg':
+                self.cfunc_erg(False)
+            elif vfunc=='erg' and hfunc=='null':
+                self.cfunc_erg(True)
+            else:
+                print('wrong characterstic functions, energy used as default')
+                self.cfunc_erg(False)
 
     def cfunc_erg(self, ergz):
+
         if ergz:
             obs_dataV=(self.ztr**2)
             for i in range(self.nstation):
@@ -224,8 +231,12 @@ class Stacktraces:
         tlong_p=tshort_p*slrat; tlong_s=tshort_s*slrat
         ks_p=self.deltat/tshort_p; kl_p=self.deltat/tlong_p;
         ks_s=self.deltat/tshort_s; kl_s=self.deltat/tlong_s;
-        obs_dataP=LOC_STALTA.recursive_stalta(tshort_p, tlong_p, self.deltat, self.obs_dataV, kl_p, ks_p, norm)
-        obs_dataS=LOC_STALTA.recursive_stalta(tshort_s, tlong_s, self.deltat, self.obs_dataH, kl_s, ks_s, norm)
+        if len(self.comp)==1:
+            obs_dataP=LOC_STALTA.recursive_stalta(tshort_p, tlong_p, self.deltat, self.obs_dataV, kl_p, ks_p, norm)
+            obs_dataS=LOC_STALTA.recursive_stalta(tshort_s, tlong_s, self.deltat, self.obs_dataV, kl_s, ks_s, norm)
+        else: 
+            obs_dataP=LOC_STALTA.recursive_stalta(tshort_p, tlong_p, self.deltat, self.obs_dataV, kl_p, ks_p, norm)
+            obs_dataS=LOC_STALTA.recursive_stalta(tshort_s, tlong_s, self.deltat, self.obs_dataH, kl_s, ks_s, norm)
         return obs_dataP, obs_dataS
 
 
