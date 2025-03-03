@@ -5,7 +5,7 @@ from datetime import datetime
 
 class Waveforms:
 
-    def __init__(self, event_path, extension_sta='*', comps=['E','N','Z'], freq=None):
+    def __init__(self, event_path, extension_sta='*', comps = None, freq=None):
         if not os.path.isdir(event_path):
             raise ValueError('Error: data path does not exist')
         try:
