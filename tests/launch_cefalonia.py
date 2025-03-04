@@ -8,16 +8,16 @@ To call LOKI you need this file and make it executable (or call python)
 from loki.loki import Loki
 
 db_path = '/home/emanuele/data/emanuele/loki-das/Traveltimes/cefalonia'
-data_path = '/home/emanuele/data/emanuele/loki-das/cefalonia'
+data_path = '/home/emanuele/data/emanuele/loki-das/cefalonia/events'
 output_path = '/home/emanuele/data/emanuele/loki-das/Traveltimes/cefalonia/output'
 hdr_filename = 'header_long_cefalonia.hdr'
 geometry_filename_fiber = 'channels.dat'
 geometry_filename_stat = 'stations_cefalonia.dat'
 inputs = {}
-inputs['tshortp_min'] = 0.1
-inputs['tshortp_max'] = 0.1
-inputs['tshorts_min'] = 0.15
-inputs['tshorts_max'] = 0.15
+inputs['tshortp_min'] = 0.5
+inputs['tshortp_max'] = 0.5
+inputs['tshorts_min'] = 1.5
+inputs['tshorts_max'] = 1.5
 inputs['slrat'] = 2
 inputs['npr'] = 1
 inputs['ntrial'] = 1

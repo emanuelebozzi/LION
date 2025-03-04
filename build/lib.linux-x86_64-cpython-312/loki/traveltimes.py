@@ -146,15 +146,11 @@ class Traveltimes:
                 lone,late,elev = origin.geo2cart(lat_degr, lon_degr,ele=0, relative=True, geo2enu=False)
 
                 
-                #print(lone,late,elev)
+                print('baaaa', lone,late,elev)
                 self.lon_stations.append(lone)
                 self.lat_stations.append(late)
                 self.depth_stations.append(elev)
 
-                #lon_utm, lat_utm = transform(self.wgs84, self.utm33n, lon_degr, lat_degr)
-                #self.lon_stations.append(lon_utm*1e-3 - self.lon0)
-                #self.lat_stations.append(lat_utm*1e-3 - self.lat0)
-                #self.depth_stations.append(float(columns[3]))
 
                 self.stations_coordinates[str(columns[0])] = (lone, late, elev)
                 

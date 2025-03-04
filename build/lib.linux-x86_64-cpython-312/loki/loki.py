@@ -29,6 +29,7 @@ class Loki:
         self.hdr_filename = hdr_filename
         self.geometry_filename_stat = geometry_filename_stat
         self.geometry_filename_fiber = geometry_filename_fiber
+        
         if mode == 'locator':
             self.data_tree, self.events = self.location_data_struct(self.data_path, self.output_path)
         elif mode == 'detector':
@@ -49,15 +50,23 @@ class Loki:
         return data_tree, events
 
     def detection_data_struct(self, data_path, output_path):
-        events = []
         data_tree = []
+        
         for root, dirs, files in os.walk(data_path):
-            if not dirs:
-                data_tree.append(root)
-        data_tree.sort()
-        events = [idtree.split('/')[-1] for idtree in data_tree]
+            if "stations" in dirs and "fiber" in dirs:  # Ensure both folders exist
+                data_tree.append({
+                    "event_path": root,
+                    "stations": os.path.join(root, "stations"),
+                    "fiber": os.path.join(root, "fiber")
+                })
+        
+        data_tree.sort(key=lambda x: x["event_path"])  # Sort based on event path
+
+        events = [os.path.basename(entry["event_path"]) for entry in data_tree]
+
         if not os.path.isdir(output_path):
             os.mkdir(output_path)
+
         return data_tree, events
 
     def location(self, comp=['E', 'N', 'Z'], precision='single', **inputs):
@@ -96,7 +105,7 @@ class Loki:
         # Synthetic Traveltimes and metadata generated with NonLinLoc and 2D 
 
 
-        print(self.geometry_filename_fiber)
+        #print(self.geometry_filename_fiber)
 
         tobj = traveltimes.Traveltimes(self.db_path, self.hdr_filename, self.geometry_filename_fiber, self.geometry_filename_stat)
 
@@ -104,38 +113,63 @@ class Loki:
         tp = tobj.load_traveltimes('P', model, precision) 
 
 
-
-        print('dimension of the tt', tp['HM00'].shape)
+        #print('dimension of the tt', tp['HM00'].shape)
 
         ts = tobj.load_traveltimes('S', model, precision)
-
-
-        
-
 
 
         #load id of stations, channels and their location 
     
         tobj.load_station_info()
-        tobj.load_channel_info()
+        #tobj.load_channel_info()
 
 
-        #for each event 
+        #for each event, locate with stations, fiber, save the two, then merge the correlation 
 
+        print('here!!')
+        
         for event_path in self.data_tree:
 
-            data_path = self.data_path
+            print('This is the data tree:', self.data_tree)
 
-            print('event path', event_path)
+            print('I am reading the data in this path:', event_path)
+
+            self.subdata_path = event_path
+        
+            #for folder in ["fiber", "stations"]:   #access stations and fiber independently
+            #    self.folder_path = os.path.join(event_path, folder)
+
+                
+            #    if os.path.exists(self.folder_path):  # Ensure the folder exists
+
+
+            #print('I am reading data from this directory: ', self.subdata_path)
 
             #Reading the observed wavefields (stations and DAS)
 
             #wobj = waveforms.Waveforms(tobj=tobj, data_path = data_path, event_path=event_path, extension_sta="*", extension_das='CANDAS2_2023-01-07_10-48-10.h5', freq=None)
-            wobj = waveforms.Waveforms(event_path, extension_sta="*", freq=None)
+            
+            last_folder = os.path.basename(self.subdata_path)  # Get the last folder name
 
-            #object of the class stacktraces  
+            if last_folder == "stations":
+            
+                label = "station"
+                
+                print(f"Stazioni!")
+                    
+                wobj = waveforms.Waveforms(self.subdata_path, extension_sta="*", comps=['E','N','Z'], freq=None)
 
-            sobj = stacktraces.Stacktraces(tobj, wobj, **inputs)
+                sobj = stacktraces.Stacktraces(tobj, wobj, **inputs)
+
+            else:
+            
+                print(f"Fibre!")
+                    
+                label = "fibre"
+                        
+                wobj = waveforms.Waveforms(self.subdata_path, extension_sta="*", comps=['Z'], freq=None)
+
+                sobj = stacktraces.Stacktraces(tobj, wobj, **inputs)
 
 
             event = event_path.split('/')[-1]
@@ -147,7 +181,7 @@ class Loki:
             else:
                 os.mkdir(self.output_path+'/'+event)
 
-   
+    
             tpxz=tp['HM00'].reshape(tobj.nxz, 1)
             tsxz=ts['HM00'].reshape(tobj.nxz, 1)
 
@@ -162,64 +196,32 @@ class Loki:
             tp_modse = num.ascontiguousarray(tpxz)
             ts_modse = num.ascontiguousarray(tsxz)
 
-            #print('sobj.deltat_sta', sobj.deltat_sta)
-            #print('sobj.deltat_das', sobj.deltat_das)
-            ########################################
+
+            tp_mod_sta, ts_mod_sta = tt_processing.tt_f2i(sobj.deltat, tp_modse, ts_modse, npr)  # traveltime table in time sample
 
 
-            tp_mod_sta, ts_mod_sta = tt_processing.tt_f2i(sobj.deltat, tp_modse, ts_modse, npr)  # traveltime table in time sample, for each imaging point traveltimes have substracted the minimal P traveltime
-
-
-            #tp_mod_sta, ts_mod_sta = tt_processing.tt_f2i(sobj.deltat_sta, tp_modse, ts_modse, npr)  # traveltime table in time sample, for each imaging point traveltimes have substracted the minimal P traveltime
-            #tp_mod_das, ts_mod_das = tt_processing.tt_f2i(sobj.deltat_das, tp_modse, ts_modse, npr)  # traveltime table in time sample, for each imaging point traveltimes have substracted the minimal P traveltime
-
-
-
-
-# %%
             cmax_pre = -1.0
             for i in range(ntrial):
                 if STALTA:
 
-                    print('a')
                     # need to calculate STA/LTA from the characteristic funtion
                     # then stack the STA/LTA for imaging
-                    #nshort_p_sta = int(tshortp[i]//sobj.deltat_sta)
-                    #nshort_s_sta = int(tshorts[i]//sobj.deltat_sta)
-                    #nshort_p_das = int(tshortp[i]//sobj.deltat_das)
-                    #nshort_s_das = int(tshorts[i]//sobj.deltat_das)
 
                     nshort_p_sta = int(tshortp[i]//sobj.deltat)
                     nshort_s_sta = int(tshorts[i]//sobj.deltat)
-                    nshort_p_das = int(tshortp[i]//sobj.deltat)
-                    nshort_s_das = int(tshorts[i]//sobj.deltat)
-
-
-                    #obs_dataP_sta, obs_dataS_sta = sobj.loc_stalta_sta(nshort_p_sta, nshort_s_sta, slrat, norm=1)
-                    #obs_dataP_das, obs_dataS_das = sobj.loc_stalta_das(nshort_p_das, nshort_s_das, slrat, norm=1)
 
 
                     obs_dataP_sta, obs_dataS_sta = sobj.loc_stalta(nshort_p_sta, nshort_s_sta, slrat, norm=1)
-                    obs_dataP_das, obs_dataS_das = sobj.loc_stalta(nshort_p_das, nshort_s_das, slrat, norm=1)
-
-                    print(obs_dataP_sta[1,:], obs_dataS_sta[1,:])
-
-
-
-
 
                 else:
-                    print('b')
+
                     # no need to calculate STA/LTA 
                     # directly stack the characteristic function for imaging
                     obs_dataP_sta = sobj.obs_dataV_sta  # vertical -> P
                     obs_dataS_sta = sobj.obs_dataH_sta  # horizontal -> S
-                    obs_dataP_das = sobj.obs_dataV_das  # vertical -> P
-                    obs_dataS_das = sobj.obs_dataH_das  # horizontal -> S
+
 
                 if opsf:
-
-                    print('c')
 
                     datainfo = {}
                     datainfo['dt'] = sobj.deltat
@@ -234,110 +236,105 @@ class Loki:
                         ioformatting.vector2trace(datainfo, obs_dataS_sta[ista,:], self.output_path+'/'+event+'/cf/trial{}'.format(i))
 
 
-                    # output the characteristic functions for stacking
-                    #datainfo = {}
-                    #datainfo['dt_sta'] = sobj.deltat_sta
-                    #datainfo['dt_sta'] = sobj.deltat
-                    #datainfo['starttime_sta'] = sobj.dtime_max_sta
-                    #datainfo['starttime_sta'] = sobj.dtime_max
-                    #datainfo['dt_das'] = sobj.deltat_das
-                    #datainfo['dt_das'] = sobj.deltat
-                    #datainfo['starttime_das'] = sobj.dtime_max_das
-                    #datainfo['starttime_das'] = sobj.dtime_max
-                    #for ista, sta in enumerate(sobj.stations):
-                    #    datainfo['station_name'] = sta
-                    #    datainfo['channel_name'] = 'CFP'  # note maximum three characters, the last one must be 'P'
-                    #    ioformatting.vector2trace(datainfo, obs_dataP_sta[ista,:], self.output_path+'/'+event+'/cf/trial{}'.format(i))
-                    #    datainfo['channel_name'] = 'CFS'  # note maximum three characters, the last one must be 'S'
-                    #    ioformatting.vector2trace(datainfo, obs_dataS_sta[ista,:], self.output_path+'/'+event+'/cf/trial{}'.format(i))
- 
-                    #for ista, sta in enumerate(sobj.channels):
-                    #    datainfo['station_name'] = sta
-                    #    datainfo['channel_name'] = 'CFP'  # note maximum three characters, the last one must be 'P'
-                    #    ioformatting.vector2trace(datainfo, obs_dataP_das[ista,:], self.output_path+'/'+event+'/cf/trial{}'.format(i))
-                    #    datainfo['channel_name'] = 'CFS'  # note maximum three characters, the last one must be 'S'
-                    #    ioformatting.vector2trace(datainfo, obs_dataS_das[ista,:], self.output_path+'/'+event+'/cf/trial{}'.format(i))
-
-                ######## pre-location plots ##############
-
-                # Save the observed P-wave data for STA (Station)
-                # Assuming obs_dataP_sta is the data with shape (6591, 8000)
-                plt.figure(figsize=(10, 10))
-                plt.plot(tp_modse, '*')
-                plt.title('tp mod sta')
-
-
-                # Save the figure as a PNG file
-                plt.tight_layout()
-                plt.savefig('tp_modse.png')  # Save the plot to a file
-                plt.close()  # Close the plot to free up memory
-
-
-                plt.figure(figsize=(10, 10))
-                plt.plot(tp_mod_sta, '*')
-                plt.title('tp mod sta')
-
-
-                # Save the figure as a PNG file
-                plt.tight_layout()
-                plt.savefig('tp_mod_sta.png')  # Save the plot to a file
-                plt.close()  # Close the plot to free up memory
-
-                # Save the observed P-wave data for STA (Station)
-                # Assuming obs_dataP_sta is the data with shape (6591, 8000)
-                plt.figure(figsize=(12, 8))
-                plt.imshow(obs_dataP_sta, aspect='auto', cmap='seismic', origin='lower', interpolation='none')
-                plt.colorbar(label='Amplitude')
-                plt.title('Observed P-Wave Data (STA) - Space vs Time')
-                plt.xlabel('Time Samples')
-                plt.ylabel('Station Index')
-
-                # Save the figure as a PNG file
-                plt.tight_layout()
-                plt.savefig('observed_p_wave_sta.png')  # Save the plot to a file
-                plt.close()  # Close the plot to free up memory
-
-                # Save the observed P-wave data for DAS (Distributed Acoustic Sensing)
-                # Assuming obs_dataP_das is the data with shape (6591, 8000)
-                plt.figure(figsize=(12, 8))
-                plt.imshow(obs_dataP_das, aspect='auto', cmap='seismic', origin='lower', interpolation='none')
-                plt.colorbar(label='Amplitude')
-                plt.title('Observed P-Wave Data (DAS) - Space vs Time')
-                plt.xlabel('Time Samples')
-                plt.ylabel('DAS Channel Index')
-
-                # Save the figure as a PNG file
-                plt.tight_layout()
-                plt.savefig('observed_p_wave_das.png')  # Save the plot to a file
-                plt.close()  # Close the plot to free up memory
-
-                ############ 
-
                 print("tp_mod_sta shape:", tp_mod_sta.shape)
                 print("ts_mod_sta shape:", ts_mod_sta.shape)
                 print("obs_dataP_sta shape:", obs_dataP_sta.shape)
                 print("obs_dataS_sta shape:", obs_dataS_sta.shape)
                 print("npr:", npr)
+                
+                
+                #python stack 
 
                 #iloc, itime, corrmatrix = location_t0.stacking(itp, its, stalta_p, stalta_s, nproc)
-
                 #stacking = location_t0_py.WaveformStacking(tobj, sobj, npr, tp_mod_sta, ts_mod_sta, obs_dataP_sta[:,:], obs_dataS_sta[:,:], obs_dataP_das[0:2,:], obs_dataS_das[0:2,:])
                 #iloc_sta, iloc_ch, iloc, itime, corrmatrix_sta, corrmatrix_ch, corrmatrix = stacking.locate_event()
-                 
-                x_stations = num.array(tobj.lon_stations, dtype=float) #change name, otherwise misleading (x,y,z)
-                y_stations = num.array(tobj.lat_stations, dtype=float) 
-                z_stations = num.array(tobj.depth_stations, dtype=float)
+                
+                x_stations_tot = num.array(tobj.lon_stations, dtype=float) #change name, otherwise misleading (x,y,z)
+                y_stations_tot = num.array(tobj.lat_stations, dtype=float) 
+                z_stations_tot = num.array(tobj.depth_stations, dtype=float)
 
-                corrmatrix = location_t0.stacking(tp_mod_sta, ts_mod_sta, x_stations, y_stations, z_stations, tobj.x, tobj.y, tobj.z, obs_dataP_sta, obs_dataS_sta, npr)
- 
-                #save 
 
-   
+                tp_mod_sta = tp_mod_sta.reshape(tobj.nx,tobj.nz)
+                ts_mod_sta = ts_mod_sta.reshape(tobj.nx,tobj.nz)
+
+                nsta = len(obs_dataP_sta[:, 1])
+                
+                x_stations =[]
+                y_stations =[]
+                z_stations =[]
+
+
+            #LOOP ON THE STATIONS 
+                for j in range(nsta):
+
+                    
+                    current_sta = sobj.stations[j]
+
+                    #print(current_sta)
+
+                    # Access the tuple (lon, lat, depth) from the dictionary
+                    lon, lat, depth = tobj.stations_coordinates.get(current_sta, (None, None, None))
+
+                    x_stations.append(lon)
+                    y_stations.append(lat)
+                    z_stations.append(depth)
+
+                           
+                    #if current_sta[2] == '0':
+                    #    current_sta = num.int(current_sta[3]) -1
+                    #else:
+                    #    current_sta = num.int(current_sta[2:4]) -1
+
+                    #x_stations.append(x_stations_tot[current_sta])
+                    #y_stations.append(y_stations_tot[current_sta])
+                    #z_stations.append(z_stations_tot[current_sta])
+
+                x_stations = num.array(x_stations, dtype=float)
+                y_stations = num.array(y_stations, dtype=float)
+                z_stations = num.array(z_stations, dtype=float)
+
+
+                #print('aaaaa', x_stations)
+
+
+                # Ensure inputs are contiguous and have the correct types
+                tp_mod_sta = num.ascontiguousarray(tp_mod_sta, dtype=num.int32)
+                ts_mod_sta = num.ascontiguousarray(ts_mod_sta, dtype=num.int32)
+                x_stations = num.ascontiguousarray(x_stations, dtype=num.float64)
+                y_stations = num.ascontiguousarray(y_stations, dtype=num.float64)
+                z_stations = num.ascontiguousarray(z_stations, dtype=num.float64)
+                tobj_x = num.ascontiguousarray(tobj.x, dtype=num.float64)
+                tobj_y = num.ascontiguousarray(tobj.y, dtype=num.float64)
+                tobj_z = num.ascontiguousarray(tobj.z, dtype=num.float64)
+                obs_dataP_sta = num.ascontiguousarray(obs_dataP_sta, dtype=num.float64)
+                obs_dataS_sta = num.ascontiguousarray(obs_dataS_sta, dtype=num.float64)
+                
+                print('I am checking for memory contiguity')
+                
+                print(tp_mod_sta.flags['C_CONTIGUOUS'])  # True if C-contiguous)
+                print(ts_mod_sta.flags['C_CONTIGUOUS'])  # True if C-contiguous)
+                print(x_stations.flags['C_CONTIGUOUS'])  # True if C-contiguous)
+                print(y_stations.flags['C_CONTIGUOUS'])  # True if C-contiguous)
+                print(z_stations.flags['C_CONTIGUOUS'])  # True if C-contiguous)
+                print(tobj_x.flags['C_CONTIGUOUS'])  # True if C-contiguous)
+                print(tobj_y.flags['C_CONTIGUOUS'])  # True if C-contiguous)
+                print(tobj_z.flags['C_CONTIGUOUS'])  # True if C-contiguous)
+                print(obs_dataP_sta.flags['C_CONTIGUOUS'])  # True if C-contiguous)
+                print(obs_dataS_sta.flags['C_CONTIGUOUS'])  # True if C-contiguous)
+
+                itime, corrmatrix = location_t0.stacking(tp_mod_sta, ts_mod_sta, x_stations, y_stations, z_stations, tobj_x, tobj_y, tobj_z, obs_dataP_sta, obs_dataS_sta, npr)
+    
                 # Step 2: Save the 3D array
-                num.save(event_path.rsplit("/", 1)[0] + "/" + event_path.rstrip("/").split("/")[-1] + "array_3d_tot.npy", corrmatrix)
-                num.save(event_path.rsplit("/", 1)[0] + "/" + event_path.rstrip("/").split("/")[-1] + "array_3d_sta.npy", corrmatrix)
-                num.save(event_path.rsplit("/", 1)[0] + "/" + event_path.rstrip("/").split("/")[-1] + "array_3d_fiber.npy", corrmatrix)
-
+                num.save(os.path.dirname(event_path).rsplit("/", 1)[0] + "/" + os.path.dirname(event_path).rstrip("/").split("/")[-1]  + '_' + label + "_coherence_matrix.npy", corrmatrix)
+            
+		        
+        print('Now creating hybrid coherence map')
+            
+        coherence_stations = num.load(os.path.dirname(event_path).rsplit("/", 1)[0] + "/" + os.path.dirname(event_path).rstrip("/").split("/")[-1] + "_station_coherence_matrix.npy")
+        coherence_fibre = num.load(os.path.dirname(event_path).rsplit("/", 1)[0] + "/" + os.path.dirname(event_path).rstrip("/").split("/")[-1] + "_fibre_coherence_matrix.npy")
+        coherence_hybrid = (coherence_stations + coherence_fibre)/2
+        num.save(os.path.dirname(event_path).rsplit("/", 1)[0] + "/" + os.path.dirname(event_path).rstrip("/").split("/")[-1] + "_hybrid_coherence_matrix.npy", coherence_hybrid)
+                
 
 
 '''

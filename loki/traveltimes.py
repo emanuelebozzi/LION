@@ -62,7 +62,7 @@ class Traveltimes:
                 # Define WGS84 (lat/lon) and UTM projection (example for zone 33N)
         self.wgs84 = Proj(proj="latlong", datum="WGS84")
         self.utm33n = Proj(proj="utm", zone=32, datum="WGS84")
-        #print(self.wgs84)
+        print(self.wgs84)
 
    
         f = open(os.path.join(self.db_path, self.hdr_filename))
@@ -82,33 +82,13 @@ class Traveltimes:
             self.ref_station_coordinates = None  
         self.refsta = toks[0] if toks else None  
 
-        #here info on the location 3D grid. The domain is a cube, so the grid is the same in x and y
-        #the dimension of the traveltime table is the one driving the dimension of the grid
-        #the traveltime table is the diagonal of the grid  (num.sqrt(2)), thus x,y,z are recontructed using the square root of 2
-
-        #self.x =  num.arange(0, (self.nx * self.dx)/num.sqrt(2) , (self.dx/num.sqrt(2)))  #define the grid search based on the 2D traveltime grid
-        #self.y =  num.arange(0, (self.nx * self.dx)/num.sqrt(2), (self.dx/num.sqrt(2) ))  #define the grid search based on the 2D traveltime grid
-        #self.z =  num.arange(0, (self.nz * self.dz), self.dz) #define the grid search based on the 2D traveltime grid
-        
-        self.x =  num.arange(0, (self.nx * self.dx) , (self.dx))  #define the grid search based on the 2D traveltime grid
-        self.y =  num.arange(0, (self.nx * self.dx), (self.dx))  #define the grid search based on the 2D traveltime grid
+        self.x =  num.arange(0, (self.nx * self.dx)/num.sqrt(2) , (self.dx/num.sqrt(2)))  #define the grid search based on the 2D traveltime grid
+        self.y =  num.arange(0, (self.nx * self.dx)/num.sqrt(2), (self.dx/num.sqrt(2) ))  #define the grid search based on the 2D traveltime grid
         self.z =  num.arange(0, (self.nz * self.dz), self.dz) #define the grid search based on the 2D traveltime grid
-        
 
         self.nxyz=self.nx*self.nx*self.nz #number of points 
         self.nxz=self.nx*self.nz 
         self.delta_das = 0.01  #
-
-        #origin=latlon2cart.Coordinates(self.x0, self.y0,self.z0)
-
-
-        
-        
-
-
-        #self.x0, self.y0 = transform(self.wgs84, self.utm33n, self.x0, self.y0)
-        #self.x0 = self.x0*1e-3
-        #self.y0 = self.y0*1e-3
 
 
     def load_station_info(self): 
@@ -117,11 +97,7 @@ class Traveltimes:
 
         origin=latlon2cart.Coordinates(self.lat0, self.lon0,self.z0)
 
-        #print(origin.X0)
-
-        #self.x0 = origin.x0
-        #self.y0 = origin.y0
-        #self.z0 = 0
+        print(origin.X0)
 
         self.stations_coordinates={}
         self.db_stations = []
@@ -140,21 +116,16 @@ class Traveltimes:
                 lon_degr = float(columns[2])
                 lat_degr = float(columns[1])
                 depth = float(columns[3])
-                #print('a')
-                #print(lon_degr,lat_degr,depth)
+                print('a')
+                print(lon_degr,lat_degr,depth)
                 #late,lone,elev=origin.cart2geo(lon_degr,lat_degr,depth)
                 lone,late,elev = origin.geo2cart(lat_degr, lon_degr,ele=0, relative=True, geo2enu=False)
-
                 
-                #print(lone,late,elev)
+                print(lone,late,elev)
                 self.lon_stations.append(lone)
                 self.lat_stations.append(late)
                 self.depth_stations.append(elev)
 
-                #lon_utm, lat_utm = transform(self.wgs84, self.utm33n, lon_degr, lat_degr)
-                #self.lon_stations.append(lon_utm*1e-3 - self.lon0)
-                #self.lat_stations.append(lat_utm*1e-3 - self.lat0)
-                #self.depth_stations.append(float(columns[3]))
 
                 self.stations_coordinates[str(columns[0])] = (lone, late, elev)
                 
@@ -348,7 +319,7 @@ if __name__=='__main__':
     db_path='/home/emanuele/data/emanuele/loki-das/Traveltimes'
     tt0=Traveltimes(db_path, 'header_long.hdr', 'station_das_ign.tmp')
     tp0=tt0.load_traveltimes('P', 'das')
-    #print(tt0.nxyz)
+    print(tt0.nxyz)
     tpxy=tp0['HM01'].reshape(tt0.nx, tt0.nz)
     #print(tpxy)
     plt.figure()

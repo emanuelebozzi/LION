@@ -130,6 +130,8 @@ class Loki:
         
         for event_path in self.data_tree:
 
+            print('This is the data tree:', self.data_tree)
+
             print('I am reading the data in this path:', event_path)
 
             self.subdata_path = event_path
@@ -268,7 +270,7 @@ class Loki:
                     
                     current_sta = sobj.stations[j]
 
-                    #print(current_sta)
+                    print(current_sta)
 
                     # Access the tuple (lon, lat, depth) from the dictionary
                     lon, lat, depth = tobj.stations_coordinates.get(current_sta, (None, None, None))
@@ -276,8 +278,7 @@ class Loki:
                     x_stations.append(lon)
                     y_stations.append(lat)
                     z_stations.append(depth)
-
-                           
+ 
                     #if current_sta[2] == '0':
                     #    current_sta = num.int(current_sta[3]) -1
                     #else:
@@ -291,8 +292,6 @@ class Loki:
                 y_stations = num.array(y_stations, dtype=float)
                 z_stations = num.array(z_stations, dtype=float)
 
-
-                #print('aaaaa', x_stations)
 
 
                 # Ensure inputs are contiguous and have the correct types
