@@ -48,12 +48,7 @@ class Traveltimes:
 
 
 
-
-
-    def convert_to_utm(lat, lon, ref_lat=51.64, ref_lon=7.72):
-        ref_east, ref_north, _, _ = utm.from_latlon(ref_lat, ref_lon)
-        east, north, _, _ = utm.from_latlon(lat, lon)
-        return (east - ref_east) / 1000, (north - ref_north) / 1000
+    
 
     def load_header(self):
 
@@ -82,22 +77,43 @@ class Traveltimes:
             self.ref_station_coordinates = None  
         self.refsta = toks[0] if toks else None  
 
-        self.x =  num.arange(0, (self.nx * self.dx)/num.sqrt(2) , (self.dx/num.sqrt(2)))  #define the grid search based on the 2D traveltime grid
-        self.y =  num.arange(0, (self.nx * self.dx)/num.sqrt(2), (self.dx/num.sqrt(2) ))  #define the grid search based on the 2D traveltime grid
+        print('aaa', self.lat0, self.lon0)
+
+        #self.x =  num.arange(0, (self.nx * self.dx)/num.sqrt(2) , (self.dx/num.sqrt(2)))  #define the grid search based on the 2D traveltime grid
+        #self.y =  num.arange(0, (self.nx * self.dx)/num.sqrt(2), (self.dx/num.sqrt(2) ))  #define the grid search based on the 2D traveltime grid
+        #self.z =  num.arange(0, (self.nz * self.dz), self.dz) #define the grid search based on the 2D traveltime grid
+
+        self.x =  num.arange(0, (self.nx * self.dx) , (self.dx))  #define the grid search based on the 2D traveltime grid
+        self.y =  num.arange(0, (self.nx * self.dx), (self.dx ))  #define the grid search based on the 2D traveltime grid
         self.z =  num.arange(0, (self.nz * self.dz), self.dz) #define the grid search based on the 2D traveltime grid
+
 
         self.nxyz=self.nx*self.nx*self.nz #number of points 
         self.nxz=self.nx*self.nz 
         self.delta_das = 0.01  #
 
 
+
     def load_station_info(self): 
         
         #read information on the location grid and the stations 
 
-        origin=latlon2cart.Coordinates(self.lat0, self.lon0,self.z0)
+        def convert_to_utm(lat, lon, ref_lat=self.lat0, ref_lon=self.lon0):
+            print('reflon', self.lon0)
+            print('reflat', self.lat0)
+            ref_east, ref_north, _, _ = utm.from_latlon(self.lat0, self.lon0)
+            east, north, _, _ = utm.from_latlon(lat, lon)
+            print('lat', 'lon', lat, lon)
+            print('ref_east', ref_east)
+            print('east', east)
+            print('outeast', (east - ref_east) / 1000)
+            print('outnorth', (north - ref_north) / 1000)
+            return (east - ref_east) / 1000, (north - ref_north) / 1000
 
-        print(origin.X0)
+        x_origin, y_origin = convert_to_utm(self.lat0, self.lon0, self.lat0, self.lon0)
+
+        #origin=latlon2cart.Coordinates(self.lat0, self.lon0,self.z0)
+
 
         self.stations_coordinates={}
         self.db_stations = []
@@ -119,7 +135,11 @@ class Traveltimes:
                 print('a')
                 print(lon_degr,lat_degr,depth)
                 #late,lone,elev=origin.cart2geo(lon_degr,lat_degr,depth)
-                lone,late,elev = origin.geo2cart(lat_degr, lon_degr,ele=0, relative=True, geo2enu=False)
+
+                lone, late = convert_to_utm(lat_degr, lon_degr, self.lat0, self.lon0)
+                elev = depth                
+
+                #lone,late,elev = origin.geo2cart(lat_degr, lon_degr,ele=0, relative=True, geo2enu=False)
                 
                 print(lone,late,elev)
                 self.lon_stations.append(lone)

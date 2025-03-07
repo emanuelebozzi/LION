@@ -151,6 +151,8 @@ class Loki:
             
             last_folder = os.path.basename(self.subdata_path)  # Get the last folder name
 
+            print(last_folder)
+
             if last_folder == "stations":
             
                 label = "station"
@@ -161,7 +163,7 @@ class Loki:
 
                 sobj = stacktraces.Stacktraces(tobj, wobj, **inputs)
 
-            else:
+            if last_folder == 'fiber':
             
                 print(f"Fibre!")
                     
@@ -171,7 +173,7 @@ class Loki:
 
                 sobj = stacktraces.Stacktraces(tobj, wobj, **inputs)
 
-
+            print('current sobj.deltat', sobj.deltat)
             event = event_path.split('/')[-1]
 
             print('Processing to the event folder: ', event_path, event)
@@ -275,6 +277,9 @@ class Loki:
                     # Access the tuple (lon, lat, depth) from the dictionary
                     lon, lat, depth = tobj.stations_coordinates.get(current_sta, (None, None, None))
 
+                    print(tobj.stations_coordinates)
+                    #print(lon,lat,depth)
+
                     x_stations.append(lon)
                     y_stations.append(lat)
                     z_stations.append(depth)
@@ -327,11 +332,41 @@ class Loki:
 		        
             print('Now creating hybrid coherence map')
                 
-            coherence_stations = num.load(os.path.dirname(event_path).rsplit("/", 1)[0] + "/" + os.path.dirname(event_path).rstrip("/").split("/")[-1] + "_station_coherence_matrix.npy")
-            coherence_fibre = num.load(os.path.dirname(event_path).rsplit("/", 1)[0] + "/" + os.path.dirname(event_path).rstrip("/").split("/")[-1] + "_fibre_coherence_matrix.npy")
-            coherence_hybrid = (coherence_stations + coherence_fibre)/2
-            num.save(os.path.dirname(event_path).rsplit("/", 1)[0] + "/" + os.path.dirname(event_path).rstrip("/").split("/")[-1] + "_hybrid_coherence_matrix.npy", coherence_hybrid)
-                    
+
+            # Construct the path to the coherence_fibre file
+            coherence_fibre_path = os.path.dirname(event_path).rsplit("/", 1)[0] + "/" + os.path.dirname(event_path).rstrip("/").split("/")[-1] + "_fibre_coherence_matrix.npy"
+            coherence_stations_path = os.path.dirname(event_path).rsplit("/", 1)[0] + "/" + os.path.dirname(event_path).rstrip("/").split("/")[-1] + "_station_coherence_matrix.npy"
+
+
+            # Check if the file exists
+            if os.path.exists(coherence_fibre_path):
+                # Load the file if it exists
+                coherence_fibre = num.load(os.path.dirname(event_path).rsplit("/", 1)[0] + "/" + os.path.dirname(event_path).rstrip("/").split("/")[-1] + "_fibre_coherence_matrix.npy")
+                #coherence_hybrid = (coherence_stations + coherence_fibre)/2
+                #num.save(os.path.dirname(event_path).rsplit("/", 1)[0] + "/" + os.path.dirname(event_path).rstrip("/").split("/")[-1] + "_hybrid_coherence_matrix.npy", coherence_hybrid)
+            else:
+                print(f"no fiber for this event")
+
+            # Check if the file exists
+            if os.path.exists(coherence_stations_path):
+                # Load the file if it exists
+                coherence_stations = num.load(os.path.dirname(event_path).rsplit("/", 1)[0] + "/" + os.path.dirname(event_path).rstrip("/").split("/")[-1] + "_station_coherence_matrix.npy")
+
+            else:
+                print(f"no stations for this event")
+
+            if os.path.exists(coherence_fibre_path) & os.path.exists(coherence_stations_path):
+
+                print(f"stations and fiber for this event!")
+
+                coherence_stations_norm = coherence_stations/max(coherence_stations)
+                coherence_fibre_norm = coherence_fibre/max(coherence_fibre)
+                
+                coherence_hybrid = (coherence_stations_norm + coherence_fibre_norm)/2
+                num.save(os.path.dirname(event_path).rsplit("/", 1)[0] + "/" + os.path.dirname(event_path).rstrip("/").split("/")[-1] + "_hybrid_coherence_matrix.npy", coherence_hybrid)
+
+
+   
 
 
 '''
