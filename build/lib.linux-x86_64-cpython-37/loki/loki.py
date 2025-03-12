@@ -1,5 +1,6 @@
 # %%
 import os
+from obspy.core import read
 import math
 import numpy as num
 import matplotlib.pyplot as plt
@@ -70,13 +71,17 @@ class Loki:
         return data_tree, events
 
     def location(self, comp=['E', 'N', 'Z'], precision='single', **inputs):
-        if 'tshortp_min' in inputs:
+        if 'tshortp_min_sta' in inputs:
             # need to calculate STA/LTA for stacking
             STALTA = True
-            tshortp_min = inputs['tshortp_min']
-            tshortp_max = inputs['tshortp_max']
-            tshorts_min = inputs['tshorts_min']
-            tshorts_max = inputs['tshorts_max']
+            tshortp_min = inputs['tshortp_min_sta']
+            tshortp_max = inputs['tshortp_max_sta']
+            tshorts_min = inputs['tshorts_min_sta']
+            tshorts_max = inputs['tshorts_max_sta']
+            tshortp_min_fiber = inputs['tshortp_min_fiber']
+            tshortp_max_fiber = inputs['tshortp_max_fiber']
+            tshorts_min_fiber = inputs['tshorts_min_fiber']
+            tshorts_max_fiber = inputs['tshorts_max_fiber']
             slrat = inputs['slrat']
             ntrial = inputs['ntrial']
             #extension_sta = inputs['extension_sta']
@@ -84,6 +89,8 @@ class Loki:
             #delta_das = inputs['delta_das']
             tshortp = num.linspace(tshortp_min, tshortp_max, ntrial)
             tshorts = num.linspace(tshorts_min, tshorts_max, ntrial)
+            tshortp_fiber = num.linspace(tshortp_min_fiber, tshortp_max_fiber, ntrial)
+            tshorts_fiber = num.linspace(tshorts_min_fiber, tshorts_max_fiber, ntrial)
         else:
             # no need to calculate STA/LTA ratio for stacking
             STALTA = False
@@ -130,9 +137,10 @@ class Loki:
         
         for event_path in self.data_tree:
 
-            print('This is the data tree:', self.data_tree)
+            #print('This is the data tree:', self.data_tree)
 
-            print('I am reading the data in this path:', event_path)
+            #print('I am reading the data in this path:', event_path)
+
 
             self.subdata_path = event_path
         
@@ -152,6 +160,30 @@ class Loki:
             last_folder = os.path.basename(self.subdata_path)  # Get the last folder name
 
             print(last_folder)
+
+
+            if last_folder == "hybrid":
+            
+                label = "hybrid"
+                
+                print(f"Rete ibrida!")
+
+                st = read(os.path.join(event_path,"*"))
+
+                components = set(tr.stats.channel for tr in st)
+
+                if len(components) == 1: 
+                    comps = ['Z']
+
+                if len(components) == 3: 
+                    comps = ['E','N','Z']
+
+                print('number of components in hybrid:', comps)
+   
+                wobj = waveforms.Waveforms(self.subdata_path, extension_sta="*", comps=comps, freq=None)
+
+                sobj = stacktraces.Stacktraces(tobj, wobj, **inputs)
+
 
             if last_folder == "stations":
             
@@ -209,8 +241,16 @@ class Loki:
                     # need to calculate STA/LTA from the characteristic funtion
                     # then stack the STA/LTA for imaging
 
-                    nshort_p_sta = int(tshortp[i]//sobj.deltat)
-                    nshort_s_sta = int(tshorts[i]//sobj.deltat)
+                    if last_folder == 'fiber':
+
+                        nshort_p_sta = int(tshortp_fiber[i]//sobj.deltat)
+                        nshort_s_sta = int(tshorts_fiber[i]//sobj.deltat)
+
+                    else:
+
+
+                        nshort_p_sta = int(tshortp[i]//sobj.deltat)
+                        nshort_s_sta = int(tshorts[i]//sobj.deltat)
 
 
                     obs_dataP_sta, obs_dataS_sta = sobj.loc_stalta(nshort_p_sta, nshort_s_sta, slrat, norm=1)
@@ -272,12 +312,12 @@ class Loki:
                     
                     current_sta = sobj.stations[j]
 
-                    print(current_sta)
+                    #print(current_sta)
 
                     # Access the tuple (lon, lat, depth) from the dictionary
                     lon, lat, depth = tobj.stations_coordinates.get(current_sta, (None, None, None))
 
-                    print(tobj.stations_coordinates)
+                    #print(tobj.stations_coordinates)
                     #print(lon,lat,depth)
 
                     x_stations.append(lon)
@@ -324,19 +364,29 @@ class Loki:
                 print(obs_dataP_sta.flags['C_CONTIGUOUS'])  # True if C-contiguous)
                 print(obs_dataS_sta.flags['C_CONTIGUOUS'])  # True if C-contiguous)
 
-                itime, corrmatrix = location_t0.stacking(tp_mod_sta, ts_mod_sta, x_stations, y_stations, z_stations, tobj_x, tobj_y, tobj_z, obs_dataP_sta, obs_dataS_sta, npr)
-    
+                iloctime, corrmatrix = location_t0.stacking(tp_mod_sta, ts_mod_sta, x_stations, y_stations, z_stations, tobj_x, tobj_y, tobj_z, obs_dataP_sta, obs_dataS_sta, npr)
+
                 # Step 2: Save the 3D array
                 num.save(os.path.dirname(event_path).rsplit("/", 1)[0] + "/" + os.path.dirname(event_path).rstrip("/").split("/")[-1]  + '_' + label + "_coherence_matrix.npy", corrmatrix)
-            
-		        
+
+                
             print('Now creating hybrid coherence map')
                 
 
             # Construct the path to the coherence_fibre file
             coherence_fibre_path = os.path.dirname(event_path).rsplit("/", 1)[0] + "/" + os.path.dirname(event_path).rstrip("/").split("/")[-1] + "_fibre_coherence_matrix.npy"
             coherence_stations_path = os.path.dirname(event_path).rsplit("/", 1)[0] + "/" + os.path.dirname(event_path).rstrip("/").split("/")[-1] + "_station_coherence_matrix.npy"
+            coherence_full_hybrid_path = os.path.dirname(event_path).rsplit("/", 1)[0] + "/" + os.path.dirname(event_path).rstrip("/").split("/")[-1] + "_hybrid_coherence_matrix.npy"
 
+
+            # Check if the file exists
+            if os.path.exists(coherence_full_hybrid_path):
+                # Load the file if it exists
+                coherence_full_hybrid = num.load(os.path.dirname(event_path).rsplit("/", 1)[0] + "/" + os.path.dirname(event_path).rstrip("/").split("/")[-1] + "_hybrid_coherence_matrix.npy")
+                #coherence_hybrid = (coherence_stations + coherence_fibre)/2
+                #num.save(os.path.dirname(event_path).rsplit("/", 1)[0] + "/" + os.path.dirname(event_path).rstrip("/").split("/")[-1] + "_hybrid_coherence_matrix.npy", coherence_hybrid)
+            else:
+                print(f"fully hybrid")
 
             # Check if the file exists
             if os.path.exists(coherence_fibre_path):
@@ -363,105 +413,25 @@ class Loki:
                 coherence_fibre_norm = coherence_fibre/max(coherence_fibre)
                 
                 coherence_hybrid = (coherence_stations_norm + coherence_fibre_norm)/2
-                num.save(os.path.dirname(event_path).rsplit("/", 1)[0] + "/" + os.path.dirname(event_path).rstrip("/").split("/")[-1] + "_hybrid_coherence_matrix.npy", coherence_hybrid)
+                num.save(os.path.dirname(event_path).rsplit("/", 1)[0] + "/" + os.path.dirname(event_path).rstrip("/").split("/")[-1] + "_hybrid_only_sum_coherence_matrix.npy", coherence_hybrid)
 
+'''                
+                iloc0, iloc1, iloc2, itime = iloctime
+                print(f"Best location index: {iloc0}")
+                print(f"Best location indices (tt): ({iloc1}, {iloc2})")
+                print(f"Best time index: {itime}")
 
-   
-
-
-'''
-
-                #stations 
-                evtpmin_sta = num.amin(tp_modse[iloc_sta[0],:])
-                event_t0_sta = sobj.dtime_max + datetime.timedelta(seconds=iloc_sta[1]*sobj.deltat_sta) - datetime.timedelta(seconds=evtpmin_sta)  # event origin time
-                event_t0s_sta = (event_t0_sta).isoformat()
-                # corrmatrix is the stacking matrix, in 1D format but can be 
-                # reformat to 3D format, each point saves the maximum stacking 
-                # value during this calculation time period
-                cmax_sta = num.max(corrmatrix_sta)
-                #corrmatrix = num.reshape(corrmatrix,(tobj.nx,tobj.ny,tobj.nz))
-                (ixloc_sta, iyloc_sta, izloc_sta) = num.unravel_index(iloc_sta[0],(tobj.nx,tobj.nx,tobj.nz))
-                xloc_sta = tobj.x[ixloc_sta]
-                yloc_sta = tobj.y[iyloc_sta]
-                zloc_sta = tobj.z[izloc_sta]
-                
-                # output the current location result
-                if ntrial > 1:
-                    cmfilename = self.output_path+'/'+event+'/'+event
-                else:
-                    cmfilename = self.output_path+'/'+event+'/'+event_t0s_sta
-                out_file = open(cmfilename+'.loc', 'a')
-                if STALTA:
-                    out_file.write(str(i)+' '+str(xloc_sta)+' '+str(yloc_sta)+' '+str(zloc_sta)+' '+str(cmax_sta)+' '+str(nshort_p_sta)+' '+str(nshort_s_sta)+' '+str(slrat)+'\n')
-                else:
-                    out_file.write(str(i)+' '+str(xloc_sta)+' '+str(yloc_sta)+' '+str(zloc_sta)+' '+str(cmax_sta)+'\n')
-                out_file.close()
-                
-                # save the stacked coherence matrix
-                num.save(self.output_path+'/'+event+'/'+'corrmatrix_trial_'+str(i),corrmatrix_sta)
-                
-                # plot migration profiles
-                self.coherence_plot(self.output_path+'/'+event, corrmatrix_sta, tobj.x, tobj.y, tobj.z, i)
-            
-                # output theoretical P- and S-wave arrivaltimes
-                fname_sta = cmfilename + '_trial{}.phs'.format(i)
-                self.write_phasetime(sobj.stations, event_t0_sta, tp_modse, ts_modse, iloc_sta[0], fname_sta)
-                
-                if cmax_sta > cmax_pre:
-                    event_t0s_final_sta = copy.deepcopy(event_t0s_sta)
-                    cmax_pre = copy.deepcopy(cmax_sta)
-
-
-                #fiber  
-                evtpmin_ch = num.amin(tp_modse[iloc_ch[0],:])
-                event_t0_ch = sobj.dtime_max + datetime.timedelta(seconds=iloc_sta[1]*sobj.deltat_das) - datetime.timedelta(seconds=evtpmin_ch)  # event origin time
-                event_t0s_ch = (event_t0_ch).isoformat()
-                # corrmatrix is the stacking matrix, in 1D format but can be 
-                # reformat to 3D format, each point saves the maximum stacking 
-                # value during this calculation time period
-                cmax_ch = num.max(corrmatrix_ch)
-                #corrmatrix = num.reshape(corrmatrix,(tobj.nx,tobj.ny,tobj.nz))
-                (ixloc_ch, iyloc_ch, izloc_ch) = num.unravel_index(iloc_ch[0],(tobj.nx,tobj.nx,tobj.nz))
-                xloc_ch = tobj.x[ixloc_ch]
-                yloc_ch = tobj.y[iyloc_ch]
-                zloc_ch = tobj.z[izloc_ch]
-                
-                # output the current location result
-                if ntrial > 1:
-                    cmfilename = self.output_path+'/'+event+'/'+event
-                else:
-                    cmfilename = self.output_path+'/'+event+'/'+event_t0s_ch
-                out_file = open(cmfilename+'.loc', 'a')
-                if STALTA:
-                    out_file.write(str(i)+' '+str(xloc_ch)+' '+str(yloc_ch)+' '+str(zloc_ch)+' '+str(cmax_ch)+' '+str(nshort_p_sta)+' '+str(nshort_s_sta)+' '+str(slrat)+'\n')
-                else:
-                    out_file.write(str(i)+' '+str(xloc_ch)+' '+str(yloc_ch)+' '+str(zloc_ch)+' '+str(cmax_sta)+'\n')
-                out_file.close()
-                
-                # save the stacked coherence matrix
-                num.save(self.output_path+'/'+event+'/'+'corrmatrix_trial_'+str(i),corrmatrix_sta)
-                
-                # plot migration profiles
-                self.coherence_plot(self.output_path+'/'+event, corrmatrix_ch, tobj.x, tobj.y, tobj.z, i)
-            
-                # output theoretical P- and S-wave arrivaltimes
-                fname_ch = cmfilename + '_trial{}.phs'.format(i)
-                self.write_phasetime(sobj.stations, event_t0_ch, tp_modse, ts_modse, iloc_ch[0], fname_ch)
-                
-                if cmax_ch > cmax_pre:
-                    event_t0s_final_ch = copy.deepcopy(event_t0s_ch)
-                    cmax_pre = copy.deepcopy(cmax_ch)
-
-                #totale
-                evtpmin = num.amin(tp_modse[iloc[0],:])
-                event_t0 = sobj.dtime_max + datetime.timedelta(seconds=iloc[1]*sobj.deltat_sta) - datetime.timedelta(seconds=evtpmin)  # event origin time
+                tp_modse_2d = num.reshape(tp_modse,(tobj.nx,tobj.nz))
+                ts_modse_2d = num.reshape(ts_modse,(tobj.nx,tobj.nz))
+                evtpmin = num.amin(tp_modse_2d[iloctime[1],iloctime[2]])
+                event_t0 = sobj.dtime_max + datetime.timedelta(seconds=iloctime[3]*sobj.deltat) - datetime.timedelta(seconds=evtpmin)  # event origin time
                 event_t0s = (event_t0).isoformat()
                 # corrmatrix is the stacking matrix, in 1D format but can be 
                 # reformat to 3D format, each point saves the maximum stacking 
                 # value during this calculation time period
                 cmax = num.max(corrmatrix)
-                #corrmatrix = num.reshape(corrmatrix,(tobj.nx,tobj.ny,tobj.nz))
-                (ixloc, iyloc, izloc) = num.unravel_index(iloc[0],(tobj.nx,tobj.nx,tobj.nz))
+                corrmatrix = num.reshape(corrmatrix,(tobj.nx,tobj.nx,tobj.nz))
+                (ixloc, iyloc, izloc) = num.unravel_index(iloctime[0],(tobj.nx,tobj.nx,tobj.nz))
                 xloc = tobj.x[ixloc]
                 yloc = tobj.y[iyloc]
                 zloc = tobj.z[izloc]
@@ -486,26 +456,19 @@ class Loki:
             
                 # output theoretical P- and S-wave arrivaltimes
                 fname = cmfilename + '_trial{}.phs'.format(i)
-                self.write_phasetime(sobj.stations, event_t0, tp_modse, ts_modse, iloc[0], fname)
-                
-                if cmax_sta > cmax_pre:
-                    event_t0s_final_tot = copy.deepcopy(event_t0s)
+                self.write_phasetime(sobj.stations, iloctime, event_t0, tp_modse_2d,ts_modse_2d, fname)
+
+                if cmax > cmax_pre:
+                    event_t0s_final = copy.deepcopy(event_t0s)
                     cmax_pre = copy.deepcopy(cmax)
-
-
             
-            self.catalogue_creation(event, event_t0s_final_sta, tobj.lat0, tobj.lon0, ntrial, corrmatrix_sta)
-            print('Location process completed (STA)!!!')
-            self.catalogue_creation(event, event_t0s_final_ch, tobj.lat0, tobj.lon0, ntrial, corrmatrix_ch)
-            print('Location process completed (FIBER)!!!')
-            self.catalogue_creation(event, event_t0s_final_tot, tobj.lat0, tobj.lon0, ntrial, corrmatrix)
-            print('Location process completed (HYBRID)!!!')
 
 
-            
-            gc.collect()
+            self.catalogue_creation(event, event_t0s_final, tobj.lat0, tobj.lon0, ntrial, corrmatrix)
+        print('Location process completed!!!')
+        gc.collect()
 
-
+#methods
     def catalogue_creation(self, event, event_t0s, lat0, lon0, ntrial, corrmatrix, refell=23):
         latref=lat0; lonref=lon0; eleref=0.
         origin=latlon2cart.Coordinates(latref,lonref,eleref)
@@ -612,7 +575,7 @@ class Loki:
         plt.close("all")
         
     
-    def write_phasetime(self, stations, event_t0, tp_modse, ts_modse, grididx, fname):
+    def write_phasetime(self, stations, iloctime, event_t0, tp_modse, ts_modse, fname):
         """
         Calculate the theoretical arrival-times of P- and S-phases for the located
         event and output to a text file.
@@ -643,13 +606,14 @@ class Loki:
         
         for ii, sta in enumerate(stations):
             # loop over each station to output the theoretical arrival-times for the P- and S-phases
-            tp_tavt = event_t0 + datetime.timedelta(seconds=tp_modse[grididx,ii])  # P_arrival-time = event_origin_time + P_traveltime
-            ts_tavt = event_t0 + datetime.timedelta(seconds=ts_modse[grididx,ii])  # S_arrival-time = event_origin_time + S_traveltime
+            tp_tavt = event_t0 + datetime.timedelta(seconds=tp_modse[iloctime[1],iloctime[2]])  # P_arrival-time = event_origin_time + P_traveltime
+            ts_tavt = event_t0 + datetime.timedelta(seconds=ts_modse[iloctime[1],iloctime[2]])  # S_arrival-time = event_origin_time + S_traveltime
             ofile.write(sta+' '+tp_tavt.isoformat()+' '+ts_tavt.isoformat()+'\n')
             ofile.flush()
             
         ofile.close()        
         
         return None
-
 '''
+
+# %%

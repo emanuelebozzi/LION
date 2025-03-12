@@ -13,7 +13,7 @@
 #endif
 
 /* Prototypes */
-int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny, long int nz, long int nsamples, long int nxyz, int itp[nrs][nzs], int its[nrs][nzs], double stax[nsta], double stay[nsta], double staz[nsta], double x[nx], double y[ny], double z[nz], double stackf_p[nsta][nsamples], double stackf_s[nsta][nsamples], double corrmatrix[nxyz], long int *iloc,long int *itime, long int nproc);
+int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny, long int nz, long int nsamples, long int nxyz, int itp[nrs][nzs], int its[nrs][nzs], double stax[nsta], double stay[nsta], double staz[nsta], double x[nx], double y[ny], double z[nz], double stackf_p[nsta][nsamples], double stackf_s[nsta][nsamples], double corrmatrix[nxyz], long int iloc[3],long int *itime, long int nproc);
 
 /* Python wrapper of the C function stacking */
 static char module_docstring[] = "Module for computing of the location";
@@ -25,7 +25,7 @@ static char stacking_docstring[] = "location through waveform stacking";
 static PyObject *py_stacking(PyObject *self, PyObject *args){
    PyArrayObject *itp, *its, *stax, *stay, *staz, *x, *y, *z, *stackf_p, *stackf_s, *corrmatrix;
    long int nrs, nzs, nsta, nx, ny, nz, nsamples, nxyz, nproc;
-   long int iloc, itime;
+   long int iloc[3], itime;
    npy_intp dims[1];
    /* checking the format of the arguments */
 
@@ -146,7 +146,7 @@ static PyObject *py_stacking(PyObject *self, PyObject *args){
         PyErr_SetString(PyExc_RuntimeError, "Running stacking failed."); return NULL;
       }
 
-      PyObject *iloctime =Py_BuildValue("(i,i)", iloc, itime);
+      PyObject *iloctime = Py_BuildValue("(iiii)", iloc[0], iloc[1], iloc[2], itime);;
       /*Py_DECREF(&iloc);*/
       /*Py_DECREF(&itime);*/
        
@@ -185,7 +185,7 @@ static PyMethodDef module_methods[]={
   };
   
 
-int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny, long int nz, long int nsamples, long int nxyz, int itp[nrs][nzs], int its[nrs][nzs], double stax[nsta], double stay[nsta], double staz[nsta], double x[nx], double y[ny], double z[nz], double stackf_p[nsta][nsamples], double stackf_s[nsta][nsamples], double corrmatrix[nxyz], long int *iloc,long int *itime, long int nproc) {
+int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny, long int nz, long int nsamples, long int nxyz, int itp[nrs][nzs], int its[nrs][nzs], double stax[nsta], double stay[nsta], double staz[nsta], double x[nx], double y[ny], double z[nz], double stackf_p[nsta][nsamples], double stackf_s[nsta][nsamples], double corrmatrix[nxyz], long int iloc[2],long int *itime, long int nproc) {
     long int iter, i, j, k;
     int ix, iy, iz, ip, is, rdist_ind, zdist_ind, kmax;
     long int tp[nsta], ts[nsta];
@@ -194,16 +194,16 @@ int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny
     double dx = x[1] - x[0];   /* traveltime table dx */
     double dz = z[1] - z[0];   /* traveltime table dz */
 
-    omp_set_num_threads(nproc);
-
-    printf(" Location process complete at : %3d %%", 0);
 
     iter = 0;
     double corrmax = -1;
 
-    #pragma omp parallel for shared(iter,corrmax,iloc,itime) private(ip, is, stkmax, stk0p, stk0s, k, j)
+    omp_set_num_threads(nproc);
 
-        for (i = 0; i < nxyz; i++) {
+
+    #pragma omp parallel for shared(corrmax, iloc, itime) private(ix, iy, iz, stkmax, kmax, rdist_ind, zdist_ind, xdist, ydist, zdist, rdist, ip, is, stk0p, stk0s, k, j, tp, ts)
+
+         for (i = 0; i < nxyz; i++) {
 
             printf("\b\b\b\b\b%ld %%", (100 * iter++) / (nxyz - 2));
 
@@ -225,7 +225,7 @@ int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny
 
             rdist_ind = 0; 
             zdist_ind = 0;
-           /*printf("\naaa\n");*/
+
            /*printf("stax = %lf\n", stax[j]);*/
            /*printf("stay = %lf\n", stay[j]);*/
            /*printf("x[ix] = %lf\n", x[ix]);*/
@@ -286,7 +286,9 @@ int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny
         #pragma omp critical
         if (corrmatrix[i]>corrmax){
            corrmax=corrmatrix[i];
-           *iloc=i;
+           iloc[0]=i;
+           iloc[1]=rdist_ind;
+           iloc[2]=zdist_ind;
            *itime=kmax;
         }
     }
