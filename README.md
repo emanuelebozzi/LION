@@ -1,5 +1,5 @@
 
-# LION
+### LION
 
 LION(event **L**ocation with **I**ntegrated fiber **O**ptic **N**etworks
 is a code that performs earthquake location
