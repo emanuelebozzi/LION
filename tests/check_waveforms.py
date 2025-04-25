@@ -20,11 +20,11 @@ import pandas as pd
 # ##STATIONS
 
 # %%
-path_st = '/home/emanuele/data/emanuele/loki-das/cefalonia/Waveforms_Emanuele/noa2024prefy.mseed'
-path_save_st = '/home/emanuele/data/emanuele/loki-das/cefalonia/events/prefy/stations/noa2024prefy_filt.mseed'
-path =  '/home/emanuele/data/emanuele/loki-das/cefalonia/Waveforms_Emanuele/noa2024prefy_das.mseed'
-save_path = '/home/emanuele/data/emanuele/loki-das/cefalonia/events/prefy/fiber/noa2024prefy_das_sel.mseed'
-save_path_subsampling = '/home/emanuele/data/emanuele/loki-das/cefalonia/events/prefy/hybrid/noa2024prefy_das_sel_subsampling.mseed'
+#path_st = '/home/emanuele/data/emanuele/loki-das/cefalonia/Waveforms_Emanuele/noa2024prefy.mseed'
+#path_save_st = '/home/emanuele/data/emanuele/loki-das/cefalonia/events/prefy/stations/noa2024prefy_filt.mseed'
+#path =  '/home/emanuele/data/emanuele/loki-das/cefalonia/Waveforms_Emanuele/noa2024prefy_das.mseed'
+#save_path = '/home/emanuele/data/emanuele/loki-das/cefalonia/events/prefy/fiber/noa2024prefy_das_sel.mseed'
+#save_path_subsampling = '/home/emanuele/data/emanuele/loki-das/cefalonia/events/prefy/hybrid/noa2024prefy_das_sel_subsampling.mseed'
 
 #path_st = '/home/emanuele/data/emanuele/loki-das/cefalonia/Waveforms_Emanuele/noa2024qalpq.mseed'
 #path_save_st = '/home/emanuele/data/emanuele/loki-das/cefalonia/events/qalpq/stations/noa2024qalpq_filt.mseed'
@@ -32,11 +32,11 @@ save_path_subsampling = '/home/emanuele/data/emanuele/loki-das/cefalonia/events/
 #save_path = '/home/emanuele/data/emanuele/loki-das/cefalonia/events/qalpq/fiber/noa2024qalpq_das_sel.mseed'
 #save_path_subsampling = '/home/emanuele/data/emanuele/loki-das/cefalonia/events/qalpq/hybrid/noa2024qalpq_das_sel_subsampling.mseed'
 
-#path_st = '/home/emanuele/data/emanuele/loki-das/cefalonia/Waveforms_Emanuele/noa2024pqvcv.mseed'
-#path_save_st = '/home/emanuele/data/emanuele/loki-das/cefalonia/events/pqvcv/stations/noa2024pqvcv_filt.mseed'
-#path =  '/home/emanuele/data/emanuele/loki-das/cefalonia/Waveforms_Emanuele/noa2024pqvcv_das.mseed'
-#save_path = '/home/emanuele/data/emanuele/loki-das/cefalonia/events/pqvcv/fiber/noa2024pqvcv_das_sel.mseed'
-#save_path_subsampling = '/home/emanuele/data/emanuele/loki-das/cefalonia/events/pqvcv/hybrid/noa2024pqvcv_das_sel_subsampling.mseed' 
+path_st = '/home/emanuele/data/emanuele/loki-das/cefalonia/Waveforms_Emanuele/noa2024pqvcv.mseed'
+path_save_st = '/home/emanuele/data/emanuele/loki-das/cefalonia/events/pqvcv/stations/noa2024pqvcv_filt.mseed'
+path =  '/home/emanuele/data/emanuele/loki-das/cefalonia/Waveforms_Emanuele/noa2024pqvcv_das.mseed'
+save_path = '/home/emanuele/data/emanuele/loki-das/cefalonia/events/pqvcv/fiber/noa2024pqvcv_das_sel.mseed'
+save_path_subsampling = '/home/emanuele/data/emanuele/loki-das/cefalonia/events/pqvcv/hybrid/noa2024pqvcv_das_sel_subsampling.mseed' 
 
 
 #path_st = '/home/emanuele/data/emanuele/loki-das/cefalonia/Waveforms_Emanuele/noa2024rgjis.mseed'
