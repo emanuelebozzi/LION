@@ -184,6 +184,27 @@ class Loki:
 
                 sobj = stacktraces.Stacktraces(tobj, wobj, **inputs)
 
+            if last_folder == "hybrid_strain_to_vel":
+            
+                label = "hybrid_strain_to_vel"
+                
+                print(f"Rete ibrida (strain to vel!")
+
+                st = read(os.path.join(event_path,"*"))
+
+                components = set(tr.stats.channel for tr in st)
+
+                if len(components) == 1: 
+                    comps = ['Z']
+
+                if len(components) == 3: 
+                    comps = ['E','N','Z']
+
+                print('number of components in hybrid:', comps)
+   
+                wobj = waveforms.Waveforms(self.subdata_path, extension_sta="*", comps=comps, freq=None)
+
+                sobj = stacktraces.Stacktraces(tobj, wobj, **inputs)
 
             if last_folder == "stations":
             
@@ -377,6 +398,7 @@ class Loki:
             coherence_fibre_path = os.path.dirname(event_path).rsplit("/", 1)[0] + "/" + os.path.dirname(event_path).rstrip("/").split("/")[-1] + "_fibre_coherence_matrix.npy"
             coherence_stations_path = os.path.dirname(event_path).rsplit("/", 1)[0] + "/" + os.path.dirname(event_path).rstrip("/").split("/")[-1] + "_station_coherence_matrix.npy"
             coherence_full_hybrid_path = os.path.dirname(event_path).rsplit("/", 1)[0] + "/" + os.path.dirname(event_path).rstrip("/").split("/")[-1] + "_hybrid_coherence_matrix.npy"
+            coherence_full_hybrid_strain_to_vel_path = os.path.dirname(event_path).rsplit("/", 1)[0] + "/" + os.path.dirname(event_path).rstrip("/").split("/")[-1] + "_hybrid_strain_to_vel_coherence_matrix.npy"
 
 
             # Check if the file exists
@@ -387,6 +409,16 @@ class Loki:
                 #num.save(os.path.dirname(event_path).rsplit("/", 1)[0] + "/" + os.path.dirname(event_path).rstrip("/").split("/")[-1] + "_hybrid_coherence_matrix.npy", coherence_hybrid)
             else:
                 print(f"fully hybrid")
+
+
+            # Check if the file exists
+            if os.path.exists(coherence_full_hybrid_strain_to_vel_path):
+                # Load the file if it exists
+                coherence_full_hybrid_strain_to_vel = num.load(os.path.dirname(event_path).rsplit("/", 1)[0] + "/" + os.path.dirname(event_path).rstrip("/").split("/")[-1] + "_hybrid_strain_to_vel_coherence_matrix.npy")
+                #coherence_hybrid = (coherence_stations + coherence_fibre)/2
+                #num.save(os.path.dirname(event_path).rsplit("/", 1)[0] + "/" + os.path.dirname(event_path).rstrip("/").split("/")[-1] + "_hybrid_coherence_matrix.npy", coherence_hybrid)
+            else:
+                print(f"fully hybrid (strain to vel)")
 
             # Check if the file exists
             if os.path.exists(coherence_fibre_path):
