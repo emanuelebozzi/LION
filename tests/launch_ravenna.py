@@ -7,22 +7,22 @@ To call LOKI you need this file and make it executable (or call python)
 
 from loki.loki import Loki
 
-db_path = '/home/emanuele/data/emanuele/loki-das/Traveltimes/cefalonia'
-data_path = '/home/emanuele/data/emanuele/loki-das/cefalonia/events'
-output_path = '/home/emanuele/data/emanuele/loki-das/Traveltimes/cefalonia/output'
-hdr_filename = 'header_long_cefalonia.hdr'
+db_path = '/home/emanuele/data/emanuele/loki-das/Traveltimes/ravenna'
+data_path = '/home/emanuele/data/emanuele/loki-das/ravenna/events'
+output_path = '/home/emanuele/data/emanuele/loki-das/ravenna/output'
+hdr_filename = 'header_long_ravenna.hdr'
 geometry_filename_fiber = 'channels.dat'
-geometry_filename_stat = 'stations_cefalonia_total.dat'
+geometry_filename_stat = 'stations_ravenna_total.dat'
 inputs = {}
-inputs['tshortp_min_sta'] = 0.7
-inputs['tshortp_max_sta'] = 0.7
-inputs['tshorts_min_sta'] = 0.7
-inputs['tshorts_max_sta'] = 0.7
-inputs['tshortp_min_fiber'] = 0.7
-inputs['tshortp_max_fiber'] = 0.7
-inputs['tshorts_min_fiber'] = 0.7
-inputs['tshorts_max_fiber'] = 0.7
-inputs['slrat'] = 2
+inputs['tshortp_min_sta'] = 0.2
+inputs['tshortp_max_sta'] = 0.2
+inputs['tshorts_min_sta'] = 0.2
+inputs['tshorts_max_sta'] = 0.2
+inputs['tshortp_min_fiber'] = 0.2
+inputs['tshortp_max_fiber'] = 0.2
+inputs['tshorts_min_fiber'] = 0.2
+inputs['tshorts_max_fiber'] = 0.2
+inputs['slrat'] = 3
 inputs['npr'] = 10
 inputs['ntrial'] = 1
 inputs['derivative'] = True

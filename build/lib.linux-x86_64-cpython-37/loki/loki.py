@@ -172,6 +172,8 @@ class Loki:
 
                 components = set(tr.stats.channel for tr in st)
 
+                print('components:', components)
+
                 if len(components) == 1: 
                     comps = ['Z']
 

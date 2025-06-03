@@ -36,9 +36,12 @@ class Stacktraces:
     def check_sampling_rate(self,wobj):
         intsamp=1E6
         deltas=[]
+        print(wobj.stream)
         for comp in (wobj.stream).keys():
+            print('comp',comp)
             for sta in (wobj.stream[comp]).keys():
                 deltas.append(wobj.stream[comp][sta][1])
+        print('deltas', deltas)
         deltas=num.array(deltas)
         ideltas=num.unique((deltas*intsamp).astype(int))
         if num.size(ideltas)==1:
