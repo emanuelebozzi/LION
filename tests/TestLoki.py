@@ -8,11 +8,11 @@ To call LOKI you need this file and make it executable (or call python)
 from loki.loki import Loki
 
 db_path = './Test_dataset/Traveltimes'
-data_path = './Test_dataset/Data'
+data_path = './Test_dataset/Data/loki'
 output_path = './Test_dataset/output'
 hdr_filename = 'header.hdr'
-geometry_filename_fiber = 
-geometry_filename_stat
+geometry_filename_fiber = 'channels.dat'
+geometry_filename_stat = 'stations.dat'
 inputs = {}
 inputs['tshortp_min'] = 0.1
 inputs['tshortp_max'] = 0.1
@@ -32,5 +32,6 @@ extension = '*'
 
 # =========  Call
 
-l1 = Loki(data_path, output_path, db_path, hdr_filename, mode='locator')
-l1.location(extension, comp, precision, **inputs)
+l1 = Loki(data_path, output_path, db_path, hdr_filename, geometry_filename_fiber, geometry_filename_stat, mode='locator')
+l1.location( comp, precision, **inputs)
+

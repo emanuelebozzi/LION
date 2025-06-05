@@ -91,7 +91,10 @@ class Stacktraces:
         self.nstation=num.size(self.stations)
         tr=num.zeros([self.nstation,self.ns])
         stream=wobj.stream[comp]
+        #print('comp', comp)
         for i,sta in enumerate(self.stations):
+            #print ('sta', sta)
+            #print ('stream', stream)
             nstr=num.size(stream[sta][2])
             idt=int((self.dtime_max-stream[sta][0]).total_seconds()/self.deltat)
             tr[i,0:nstr-idt]=stream[sta][2][idt:]

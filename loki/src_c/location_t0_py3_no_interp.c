@@ -241,50 +241,22 @@ int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny
            /*printf("zdist = %lf\n", zdist);*/
            /*printf("dx = %lf\n", dx);*/
            /*printf("dz = %lf\n", dz);*/
+           rdist_ind = (int)floor(rdist / dx);   /*round the nearest index*/
+           /*printf("rdist_ind = %d", rdist_ind);*/
+           zdist_ind = (int)floor(zdist / dz);
+           /*printf("zdist_ind = %d", zdist_ind);*/
 
-/* old code */
-
-
-           /*rdist_ind = (int)floor(rdist / dx);*/   /*round the nearest index*/
-           /*zdist_ind = (int)floor(zdist / dz);*/
-
-           /*if (rdist_ind > nx-1) {*/
-           /* rdist_ind = (int)(nx-1); }*/
-           /* if (zdist_ind > nz-1) {*/
-           /*    zdist_ind = (int)(nz-1); }*/
+           if (rdist_ind > nx-1) {
+            rdist_ind = (int)(nx-1); }
+            if (zdist_ind > nz-1) {
+               zdist_ind = (int)(nz-1); }
                
-           /*tp[j] = itp[rdist_ind][zdist_ind];*/
-           /*ts[j] = its[rdist_ind][zdist_ind];*/
-
-
-/* old code */
-
-/* new code */
-
-            double r_idx = rdist / dx;
-            rdist_ind = (int)floor(r_idx);
-            zdist_ind = (int)floor(zdist / dz);
-            int rdist_ind_next = rdist_ind + 1;
-
-            if (rdist_ind >= nx - 1) {
-               rdist_ind = nx - 2;
-               rdist_ind_next = nx - 1;
-            }
-
-            if (zdist_ind > nz - 1) {
-               zdist_ind = nz - 1;
-            }
-
-            double w = r_idx - rdist_ind;  // interpolation weight (between 0 and 1)
-
-            double tpi = (1 - w) * itp[rdist_ind][zdist_ind] + w * itp[rdist_ind_next][zdist_ind];
-            double tsi = (1 - w) * its[rdist_ind][zdist_ind] + w * its[rdist_ind_next][zdist_ind];
-
-            tp[j] = (long int)(tpi + 0.5);  // round to nearest int, whch avoid e.g., 42.9 to be rounded to 42, but instead to 43
-            ts[j] = (long int)(tsi + 0.5);
-
-
-/* new code */
+           /*printf("rdist_ind = %d ", rdist_ind);*/
+           /*printf("zdist_ind = %d", zdist_ind);*/
+           tp[j] = itp[rdist_ind][zdist_ind];
+           ts[j] = its[rdist_ind][zdist_ind];
+           /*printf("tp = %ld", tp[j]);*/
+           /*printf("ts = %ld", ts[j]);*/
 
         }
          for(k=0;k<nsamples;k++){

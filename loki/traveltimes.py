@@ -57,7 +57,7 @@ class Traveltimes:
                 # Define WGS84 (lat/lon) and UTM projection (example for zone 33N)
         self.wgs84 = Proj(proj="latlong", datum="WGS84")
         self.utm33n = Proj(proj="utm", zone=32, datum="WGS84")
-        print(self.wgs84)
+        #print(self.wgs84)
 
    
         f = open(os.path.join(self.db_path, self.hdr_filename))
@@ -77,7 +77,7 @@ class Traveltimes:
             self.ref_station_coordinates = None  
         self.refsta = toks[0] if toks else None  
 
-        print('aaa', self.lat0, self.lon0)
+        #print('aaa', self.lat0, self.lon0)
 
         #self.x =  num.arange(0, (self.nx * self.dx)/num.sqrt(2) , (self.dx/num.sqrt(2)))  #define the grid search based on the 2D traveltime grid
         #self.y =  num.arange(0, (self.nx * self.dx)/num.sqrt(2), (self.dx/num.sqrt(2) ))  #define the grid search based on the 2D traveltime grid
@@ -99,15 +99,15 @@ class Traveltimes:
         #read information on the location grid and the stations 
 
         def convert_to_utm(lat, lon, ref_lat=self.lat0, ref_lon=self.lon0):
-            print('reflon', self.lon0)
-            print('reflat', self.lat0)
+            #print('reflon', self.lon0)
+            #print('reflat', self.lat0)
             ref_east, ref_north, _, _ = utm.from_latlon(self.lat0, self.lon0)
             east, north, _, _ = utm.from_latlon(lat, lon)
-            print('lat', 'lon', lat, lon)
-            print('ref_east', ref_east)
-            print('east', east)
-            print('outeast', (east - ref_east) / 1000)
-            print('outnorth', (north - ref_north) / 1000)
+            #print('lat', 'lon', lat, lon)
+            #print('ref_east', ref_east)
+            #print('east', east)
+            #print('outeast', (east - ref_east) / 1000)
+            #print('outnorth', (north - ref_north) / 1000)
             return (east - ref_east) / 1000, (north - ref_north) / 1000
 
         x_origin, y_origin = convert_to_utm(self.lat0, self.lon0, self.lat0, self.lon0)
@@ -132,8 +132,8 @@ class Traveltimes:
                 lon_degr = float(columns[2])
                 lat_degr = float(columns[1])
                 depth = float(columns[3])
-                print('a')
-                print(lon_degr,lat_degr,depth)
+                #print('a')
+                #print(lon_degr,lat_degr,depth)
                 #late,lone,elev=origin.cart2geo(lon_degr,lat_degr,depth)
 
                 lone, late = convert_to_utm(lat_degr, lon_degr, self.lat0, self.lon0)
@@ -141,7 +141,7 @@ class Traveltimes:
 
                 #lone,late,elev = origin.geo2cart(lat_degr, lon_degr,ele=0, relative=True, geo2enu=False)
                 
-                print(lone,late,elev)
+                #print(lone,late,elev)
                 self.lon_stations.append(lone)
                 self.lat_stations.append(late)
                 self.depth_stations.append(elev)
@@ -303,7 +303,7 @@ class Traveltimes:
                 fname='homo.%(phase)s.%(station)s.time.buf' %{"phase":phase, "station":sta}
                 fout=open(self.db_path+'/'+fname,'wb')
                 tt=num.zeros(self.nxyz)
-                print(self.nxyz,self.nx,self.ny,self.nz)
+                #print(self.nxyz,self.nx,self.ny,self.nz)
                 for k in range(self.nxyz):
                     ix=k//(self.ny*self.nz)
                     iy=k//self.nz-(ix*self.ny)
@@ -339,7 +339,7 @@ if __name__=='__main__':
     db_path='/home/emanuele/data/emanuele/loki-das/Traveltimes'
     tt0=Traveltimes(db_path, 'header_long.hdr', 'station_das_ign.tmp')
     tp0=tt0.load_traveltimes('P', 'das')
-    print(tt0.nxyz)
+    #print(tt0.nxyz)
     tpxy=tp0['HM01'].reshape(tt0.nx, tt0.nz)
     #print(tpxy)
     plt.figure()

@@ -8,16 +8,20 @@ To call LOKI you need this file and make it executable (or call python)
 from loki.loki import Loki
 
 db_path = '/home/emanuele/data/emanuele/loki-das/Traveltimes/new2'
-data_path = '/home/emanuele/data/emanuele/loki-das/Data'
+data_path = '/home/emanuele/data/emanuele/loki-das/Data/loki'
 output_path = '/home/emanuele/data/emanuele/loki-das/Traveltimes/new2/output'
 hdr_filename = 'header_long.hdr'
 geometry_filename_fiber = 'channels.dat'
 geometry_filename_stat = 'stations.dat'
 inputs = {}
-inputs['tshortp_min'] = 0.1
-inputs['tshortp_max'] = 0.1
-inputs['tshorts_min'] = 0.15
-inputs['tshorts_max'] = 0.15
+inputs['tshortp_min_sta'] = 0.10
+inputs['tshortp_max_sta'] = 0.10
+inputs['tshorts_min_sta'] = 0.15
+inputs['tshorts_max_sta'] = 0.15
+inputs['tshortp_min_fiber'] = 0.15
+inputs['tshortp_max_fiber'] = 0.15
+inputs['tshorts_min_fiber'] = 0.15
+inputs['tshorts_max_fiber'] = 0.15
 inputs['slrat'] = 2
 inputs['npr'] = 1
 inputs['ntrial'] = 1
@@ -31,6 +35,7 @@ comp = ['E', 'N', 'Z']
 inputs['extension_sta'] = '*'
 inputs['extension_das'] = 'CANDAS2_2023-01-07_10-48-10.h5'
 inputs['delta_das'] = 200
+
 
 # =========  Call
 

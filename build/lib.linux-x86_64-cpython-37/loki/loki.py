@@ -170,9 +170,23 @@ class Loki:
 
                 st = read(os.path.join(event_path,"*"))
 
+                print(st)
+
                 components = set(tr.stats.channel for tr in st)
 
-                print('components:', components)
+                # Check minimum number of components per trace
+                # Since each trace corresponds to one channel/component, 
+                # I assume you want to check if any trace has only one component
+                # meaning the trace's channel name length or count of components?
+
+                # If you mean check if any trace is single-component (like "HHZ"), 
+                # we can just check if that component is the only component present overall.
+
+                if len(components) == 1:
+                    print(f"Only a single component detected across all traces: {components}")
+                else:
+                    print(f"Multiple components detected: {components}")
+
 
                 if len(components) == 1: 
                     comps = ['Z']
@@ -195,6 +209,8 @@ class Loki:
                 st = read(os.path.join(event_path,"*"))
 
                 components = set(tr.stats.channel for tr in st)
+
+                print('components:', components)
 
                 if len(components) == 1: 
                     comps = ['Z']
@@ -228,7 +244,7 @@ class Loki:
 
                 sobj = stacktraces.Stacktraces(tobj, wobj, **inputs)
 
-            print('current sobj.deltat', sobj.deltat)
+            #print('current sobj.deltat', sobj.deltat)
             event = event_path.split('/')[-1]
 
             print('Processing to the event folder: ', event_path, event)
