@@ -280,7 +280,7 @@ int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny
             double tpi = (1 - w) * itp[rdist_ind][zdist_ind] + w * itp[rdist_ind_next][zdist_ind];
             double tsi = (1 - w) * its[rdist_ind][zdist_ind] + w * its[rdist_ind_next][zdist_ind];
 
-            tp[j] = (long int)(tpi + 0.5);  // round to nearest int
+            tp[j] = (long int)(tpi + 0.5);  // round to nearest int, whch avoid e.g., 42.9 to be rounded to 42, but instead to 43
             ts[j] = (long int)(tsi + 0.5);
 
 
@@ -302,8 +302,10 @@ int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny
                     stk0s=0. + stk0s;
                  }
            }
-                if (stk0p*stk0s>stkmax){
-                    stkmax=stk0p*stk0s;
+                if (stk0p+stk0s>stkmax){
+                /*if (stk0p*stk0s>stkmax){ */
+                    stkmax=stk0p + stk0s;
+                    /* stkmax=stk0p*stk0s; */ 
                      kmax=k;
                 }
        }
