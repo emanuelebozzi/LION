@@ -36,12 +36,12 @@ class Stacktraces:
     def check_sampling_rate(self,wobj):
         intsamp=1E6
         deltas=[]
-        print(wobj.stream)
+        #print(wobj.stream)
         for comp in (wobj.stream).keys():
-            print('comp',comp)
+            #print('comp',comp)
             for sta in (wobj.stream[comp]).keys():
                 deltas.append(wobj.stream[comp][sta][1])
-        print('deltas', deltas)
+        #print('deltas', deltas)
         deltas=num.array(deltas)
         ideltas=num.unique((deltas*intsamp).astype(int))
         if num.size(ideltas)==1:
@@ -71,8 +71,8 @@ class Stacktraces:
             # normal input, input 1- or 3-component data for calculating characteristic
             # function later
             self.comp=tuple((wobj.stream).keys())
-            print('comp number:', self.comp)
-            print(len(self.comp))
+            #print('comp number:', self.comp)
+            #print(len(self.comp))
             if len(self.comp)==3:
                 self.xtr=self.select_data(self.comp[0], wobj, tobj.db_stations, derivative, normalize)
                 self.ytr=self.select_data(self.comp[1], wobj, tobj.db_stations, derivative, normalize)

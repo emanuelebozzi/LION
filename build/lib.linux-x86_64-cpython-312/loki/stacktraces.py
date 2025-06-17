@@ -36,9 +36,12 @@ class Stacktraces:
     def check_sampling_rate(self,wobj):
         intsamp=1E6
         deltas=[]
+        #print(wobj.stream)
         for comp in (wobj.stream).keys():
+            #print('comp',comp)
             for sta in (wobj.stream[comp]).keys():
                 deltas.append(wobj.stream[comp][sta][1])
+        #print('deltas', deltas)
         deltas=num.array(deltas)
         ideltas=num.unique((deltas*intsamp).astype(int))
         if num.size(ideltas)==1:
@@ -68,8 +71,8 @@ class Stacktraces:
             # normal input, input 1- or 3-component data for calculating characteristic
             # function later
             self.comp=tuple((wobj.stream).keys())
-            print('comp number:', self.comp)
-            print(len(self.comp))
+            #print('comp number:', self.comp)
+            #print(len(self.comp))
             if len(self.comp)==3:
                 self.xtr=self.select_data(self.comp[0], wobj, tobj.db_stations, derivative, normalize)
                 self.ytr=self.select_data(self.comp[1], wobj, tobj.db_stations, derivative, normalize)
@@ -88,7 +91,10 @@ class Stacktraces:
         self.nstation=num.size(self.stations)
         tr=num.zeros([self.nstation,self.ns])
         stream=wobj.stream[comp]
+        #print('comp', comp)
         for i,sta in enumerate(self.stations):
+            #print ('sta', sta)
+            #print ('stream', stream)
             nstr=num.size(stream[sta][2])
             idt=int((self.dtime_max-stream[sta][0]).total_seconds()/self.deltat)
             tr[i,0:nstr-idt]=stream[sta][2][idt:]
@@ -142,6 +148,8 @@ class Stacktraces:
                 self.cfunc_erg(False)
             elif vfunc=='erg' and hfunc=='null':
                 self.cfunc_erg(True)
+            elif vfunc=='cosh' and hfunc=='cosh':
+                self.cfunc_cosh(False)
             else:
                 print('wrong characterstic functions, energy used as default')
                 self.cfunc_erg(False)
@@ -157,6 +165,25 @@ class Stacktraces:
         else:
             obs_dataV=(self.ztr**2)
             obs_dataH=(self.xtr**2)+(self.ytr**2)
+            for i in range(self.nstation):
+                if abs(num.max(obs_dataH[i,:])) > 0:
+                    obs_dataH[i,:]=(obs_dataH[i,:]/num.max(obs_dataH[i,:]))
+                if abs(num.max(obs_dataV[i,:])) > 0:
+                    obs_dataV[i,:]=(obs_dataV[i,:]/num.max(obs_dataV[i,:]))
+            self.obs_dataH=obs_dataH
+            self.obs_dataV=obs_dataV
+
+    def cfunc_cosh(self, coshz):
+
+        if coshz:
+            obs_dataV=(num.cosh(self.ztr))
+            for i in range(self.nstation):
+                if num.max(obs_dataV[i,:]) > 0:
+                    obs_dataV[i,:]=(obs_dataV[i,:]/num.max(obs_dataV[i,:]))
+            self.obs_dataV=obs_dataV
+        else:
+            obs_dataV=num.cosh(self.ztr)
+            obs_dataH=num.cosh(self.xtr)*num.cosh(self.ytr)
             for i in range(self.nstation):
                 if abs(num.max(obs_dataH[i,:])) > 0:
                     obs_dataH[i,:]=(obs_dataH[i,:]/num.max(obs_dataH[i,:]))

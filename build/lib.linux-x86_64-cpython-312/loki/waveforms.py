@@ -5,7 +5,7 @@ from datetime import datetime
 
 class Waveforms:
 
-    def __init__(self, event_path, extension_sta='*', comps = None, freq=None):
+    def __init__(self, event_path, extension_sta='*', comps=None, freq=None):
         if not os.path.isdir(event_path):
             raise ValueError('Error: data path does not exist')
         try:
@@ -22,8 +22,11 @@ class Waveforms:
                     data_stalist.append(sta)
         self.data_stations=set(data_stalist)
 
+        #print('data_stations', self.data_stations)
+
     def load_waveforms(self, event_path, extension_sta, comps, freq):
         files=os.path.join(event_path,extension_sta)
+        #print('files', files)
         traces=read(files)
         
         if freq:
@@ -38,6 +41,7 @@ class Waveforms:
         for comp in comps:
             self.stream[comp]={}
             for tr in traces:
+                #print('tr.stats', tr.stats)
                 if tr.stats.channel[-1]==comp:
                     dtime=datetime.strptime(str(tr.stats.starttime),"%Y-%m-%dT%H:%M:%S.%fZ")
                     self.stream[comp][tr.stats.station]=[dtime, tr.stats.delta, tr.data]
