@@ -18,6 +18,7 @@ from loki import latlon2cart
 from loki import location_t0_py
 import tt_processing                       # C
 import location_t0                         # C  for multiplying the P- and S-stacking values using this
+import location_t0_sta                     
 #import location_t0_plus                   # C  for adding the P- and S-stacking values using this
 
 
@@ -149,14 +150,18 @@ class Loki:
 
 
             # Clean previous output files only in this event's output folder
-            #for f in glob.glob(os.path.join(output_dir, '*.loc')):
-            #    os.remove(f)
-            #for f in glob.glob(os.path.join(output_dir, '*.npy')):
-            #    os.remove(f)
+            for f in glob.glob(os.path.join(output_dir, '*.loc')):
+                os.remove(f)
+            for f in glob.glob(os.path.join(output_dir, '*.npy')):
+                os.remove(f)
 
-            #catalogue_path = os.path.join(output_dir, 'catalogue')
-            #if os.path.exists(catalogue_path):
-            #    os.remove(catalogue_path)
+            catalogue_path = os.path.join(output_dir, '*.catalogue')
+            if os.path.exists(catalogue_path):
+                os.remove(catalogue_path)
+
+            png_path = os.path.join(output_dir, '*.png')
+            if os.path.exists(png_path):
+                os.remove(png_path)
 
             for i in range(ntrial):
                 if STALTA:
@@ -186,10 +191,25 @@ class Loki:
                 obs_dataP_sta = num.ascontiguousarray(obs_dataP_sta, dtype=num.float64)
                 obs_dataS_sta = num.ascontiguousarray(obs_dataS_sta, dtype=num.float64)
 
-                iloctime, corrmatrix = location_t0.stacking(tp_mod_sta, ts_mod_sta,
-                                                            x_stations, y_stations, z_stations,
-                                                            tobj.x, tobj.y, tobj.z,
-                                                            obs_dataP_sta, obs_dataS_sta, npr)
+
+                if last_folder == "stations":  
+
+                    print('now only stations and thus stacking P*S')                                      
+
+                    iloctime, corrmatrix = location_t0_sta.stacking(tp_mod_sta, ts_mod_sta,
+                                                                x_stations, y_stations, z_stations,
+                                                                tobj.x, tobj.y, tobj.z,
+                                                                obs_dataP_sta, obs_dataS_sta, npr)
+                    
+
+                else:
+
+                    iloctime, corrmatrix = location_t0.stacking(tp_mod_sta, ts_mod_sta,
+                                                                x_stations, y_stations, z_stations,
+                                                                tobj.x, tobj.y, tobj.z,
+                                                                obs_dataP_sta, obs_dataS_sta, npr)
+
+
 
                 evtpmin = num.amin(tp_modse)
                 event_t0 = sobj.dtime_max + datetime.timedelta(seconds=iloctime[3] * sobj.deltat) - datetime.timedelta(seconds=evtpmin)

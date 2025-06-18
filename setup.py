@@ -26,6 +26,13 @@ location_t0 = Extension('location_t0',
                      extra_compile_args=['-O3', '-fopenmp'],
                      extra_link_args=['-lgomp'])
 
+location_t0_sta = Extension('location_t0_sta',
+                     sources=['loki/src_c/location_t0_sta_py3_omp.c'],
+                     include_dirs=[numpy.get_include()],
+                     extra_compile_args=['-O3', '-fopenmp'],
+                     extra_link_args=['-lgomp'])
+
+
 location_t0_plus = Extension('location_t0_plus',
                      sources=['loki/src_c/location_t0_py3_omp_plus.c'],
                      include_dirs=[numpy.get_include()],
@@ -78,6 +85,7 @@ setup(
     ],
     ext_modules=[location,
                  location_t0,
+                 location_t0_sta,
                  location_t0_plus,
                  detection,
                  tt_processing,
