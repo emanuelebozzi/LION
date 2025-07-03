@@ -1,5 +1,6 @@
 # %%
 import os
+import glob
 from obspy.core import read
 import math
 import numpy as num
@@ -17,6 +18,7 @@ from loki import latlon2cart
 from loki import location_t0_py
 import tt_processing                       # C
 import location_t0                         # C  for multiplying the P- and S-stacking values using this
+import location_t0_sta                     
 #import location_t0_plus                   # C  for adding the P- and S-stacking values using this
 
 
@@ -101,8 +103,12 @@ class Loki:
         ts = tobj.load_traveltimes('S', model, precision)
         tobj.load_station_info()
 
+
         for event_path in self.data_tree:
             self.subdata_path = event_path
+            rel_path = os.path.relpath(event_path, self.data_path)  # e.g., 'closest_event' or 'ww2_bomb'
+            output_dir = os.path.join(self.output_path, rel_path)
+            os.makedirs(output_dir, exist_ok=True)
             last_folder = os.path.basename(self.subdata_path)
 
             print(f"Processing event: {event_path}")
@@ -119,10 +125,10 @@ class Loki:
                 components = set(tr.stats.channel for tr in st)
                 comps = ['Z'] if len(components) == 1 else ['E', 'N', 'Z']
             elif last_folder == "stations":
-                label = "station"
+                label = "stations"
                 comps = ['E', 'N', 'Z']
             elif last_folder == "fiber":
-                label = "fibre"
+                label = "fiber"
                 comps = ['Z']
             else:
                 continue
@@ -130,8 +136,9 @@ class Loki:
             wobj = waveforms.Waveforms(self.subdata_path, extension_sta="*", comps=comps, freq=None)
             sobj = stacktraces.Stacktraces(tobj, wobj, **inputs)
             event = event_path.split('/')[-1]
-            output_dir = os.path.join(self.output_path, event)
-            os.makedirs(output_dir, exist_ok=True)
+            #print('event', event)
+            #output_dir = os.path.join(self.output_path, event)
+            #os.makedirs(output_dir, exist_ok=True)
 
             tp_modse = num.ascontiguousarray(tp['HM00'].reshape(tobj.nxz, 1), dtype=num.float64)
             ts_modse = num.ascontiguousarray(ts['HM00'].reshape(tobj.nxz, 1), dtype=num.float64)
@@ -141,9 +148,24 @@ class Loki:
             event_t0s_final = None
             corrmatrix_best = None
 
+
+            # Clean previous output files only in this event's output folder
+            for f in glob.glob(os.path.join(output_dir, '*.loc')):
+                os.remove(f)
+            for f in glob.glob(os.path.join(output_dir, '*.npy')):
+                os.remove(f)
+
+            catalogue_path = os.path.join(output_dir, '*.catalogue')
+            if os.path.exists(catalogue_path):
+                os.remove(catalogue_path)
+
+            png_path = os.path.join(output_dir, '*.png')
+            if os.path.exists(png_path):
+                os.remove(png_path)
+
             for i in range(ntrial):
                 if STALTA:
-                    if label == 'fibre':
+                    if label == 'fiber':
                         nshort_p_sta = int(tshortp_fiber[i] // sobj.deltat)
                         nshort_s_sta = int(tshorts_fiber[i] // sobj.deltat)
                     else:
@@ -169,10 +191,33 @@ class Loki:
                 obs_dataP_sta = num.ascontiguousarray(obs_dataP_sta, dtype=num.float64)
                 obs_dataS_sta = num.ascontiguousarray(obs_dataS_sta, dtype=num.float64)
 
-                iloctime, corrmatrix = location_t0.stacking(tp_mod_sta, ts_mod_sta,
-                                                            x_stations, y_stations, z_stations,
-                                                            tobj.x, tobj.y, tobj.z,
-                                                            obs_dataP_sta, obs_dataS_sta, npr)
+
+                if last_folder == "stations":  
+
+                    print('now only stations and thus stacking P*S')                                      
+
+                    iloctime, corrmatrix = location_t0_sta.stacking(tp_mod_sta, ts_mod_sta,
+                                                                x_stations, y_stations, z_stations,
+                                                                tobj.x, tobj.y, tobj.z,
+                                                                obs_dataP_sta, obs_dataS_sta, npr)
+
+                elif last_folder == "hybrid":  
+
+                    print('now hybrid thus stacking P*S')                                      
+
+                    iloctime, corrmatrix = location_t0_sta.stacking(tp_mod_sta, ts_mod_sta,
+                                                                x_stations, y_stations, z_stations,
+                                                                tobj.x, tobj.y, tobj.z,
+                                                                obs_dataP_sta, obs_dataS_sta, npr)                    
+
+                else:
+
+                    iloctime, corrmatrix = location_t0.stacking(tp_mod_sta, ts_mod_sta,
+                                                                x_stations, y_stations, z_stations,
+                                                                tobj.x, tobj.y, tobj.z,
+                                                                obs_dataP_sta, obs_dataS_sta, npr)
+
+
 
                 evtpmin = num.amin(tp_modse)
                 event_t0 = sobj.dtime_max + datetime.timedelta(seconds=iloctime[3] * sobj.deltat) - datetime.timedelta(seconds=evtpmin)
@@ -180,9 +225,12 @@ class Loki:
                 cmax = num.max(corrmatrix)
 
                 # Use consistent .loc filenames: event name only, no label appended
-                cmfilename = f"{output_dir}/{event}" if ntrial > 1 else f"{output_dir}/{event_t0s}"
+                cmfilename = f"{output_dir}/{event}" if ntrial > 1 else f"{output_dir}/{event}"
 
-                with open(cmfilename + '.loc', 'a') as out_file:
+                print('cmfilename', cmfilename)
+
+                mode = 'a' if i > 0 else 'w'
+                with open(cmfilename + '.loc', mode) as out_file:
                     if STALTA:
                         out_file.write(f"{i} {x_stations[0]} {y_stations[0]} {z_stations[0]} {cmax} {nshort_p_sta} {nshort_s_sta} {slrat}\n")
                     else:
@@ -194,58 +242,88 @@ class Loki:
                     event_t0s_final = copy.deepcopy(event_t0s)
                     corrmatrix_best = copy.deepcopy(corrmatrix)
                     cmax_pre = cmax
+                    best_trial_index = i  # <--- Add this line
 
             if event_t0s_final and corrmatrix_best is not None:
                 try:
-                    self.catalogue_creation(event, event_t0s_final, tobj.lat0, tobj.lon0, ntrial, corrmatrix_best, label)
+                    self.catalogue_creation(cmfilename, event, event_t0s_final, tobj.lat0, tobj.lon0, ntrial, corrmatrix_best, label)
+                    # ---- Coherence Plot ----
+                    self.coherence_plot(
+                        cmfilename, event_path,  # event_path
+                        corrmatrix_best,tobj,                        # coherence matrix of best trial
+                        tobj.x, tobj.y, tobj.z,                 # grid axes
+                        best_trial_index,                       # trial number
+                        normalization=False                      # optional
+                    )
                 except Exception as e:
-                    print(f"Catalogue creation failed for event {event} - {label}: {e}")
+                    print(f"Catalogue creation or coherence plot failed for event {event} - {label}: {e}")
 
 #methods
-    def catalogue_creation(self, event, event_t0s, lat0, lon0, ntrial, corrmatrix, refell=23):
-        latref=lat0; lonref=lon0; eleref=0.01
-        origin=latlon2cart.Coordinates(latref,lonref,eleref)
+    def catalogue_creation(self, cmfilename, event, event_t0s, lat0, lon0, ntrial, corrmatrix, refell=23):
+        latref = lat0
+        lonref = lon0
+        eleref = 1
+        origin = latlon2cart.Coordinates(latref, lonref, eleref)
+
         if (ntrial > 1):
-            ev_file = self.output_path+'/'+event+'/'+event+'.loc'
+            ev_file = cmfilename + '.loc'
             data = num.loadtxt(ev_file)
             w = num.sum(data[:, 4])
-            xb = ((num.dot(data[:, 1], data[:, 4])/w)*1000)
-            yb = ((num.dot(data[:, 2], data[:, 4])/w)*1000)
+            xb = ((num.dot(data[:, 1], data[:, 4]) / w) * 1000)
+            yb = ((num.dot(data[:, 2], data[:, 4]) / w) * 1000)
             print(f"xb: {xb}, yb: {yb}, eleref: {eleref}")
-            late,lone,elev=origin.cart2geo(xb,yb,eleref)
-            zb = num.dot(data[:, 3], data[:, 4])/w  # depth in km
-            cb = num.mean(data[:, 4])  # the mean coherence over the ntrial realizations
-            cmax = num.max(data[:, 4])  # the maximum coherence over the ntrial realizations
+            try:
+                result = origin.cart2geo(xb, yb, eleref)
+                if isinstance(result, (tuple, list)) and len(result) == 3:
+                    late, lone, elev = result
+                else:
+                    raise ValueError(f"Invalid cart2geo output: {result}")
+            except Exception as e:
+                print(f"[ERROR] cart2geo failed for event {event} ({event_t0s}): {e}")
+                late, lone, elev = 0.0, 0.0, 0.0  # Or consider skipping this catalogue entry
+
+            zb = num.dot(data[:, 3], data[:, 4]) / w  # depth in km
+            cb = num.mean(data[:, 4])  # mean coherence
+            cmax = num.max(data[:, 4])  # max coherence
             merr = num.vstack((data[:, 1], data[:, 2], data[:, 3]))
             err = num.cov(merr)
             errmax = num.sqrt(num.max(num.linalg.eigvals(err)))
         else:
-            ev_file = self.output_path+'/'+event+'/'+event_t0s+'.loc'
+            ev_file = cmfilename + '.loc'
             data = num.loadtxt(ev_file)
-            xb=data[1]*1000
-            yb=data[2]*1000
+            if data.ndim > 1:
+               data = data[0]  # Get first row
+            xb = data[1] * 1000
+            yb = data[2] * 1000
             zb = data[3]  # depth in km
-            late,lone,elev=origin.cart2geo(xb,yb,eleref) # latitude, longitude
-            cmax = data[4]  # the maximum coherence over the 3D corrmatrix
-            
-            # nomalize corrmatrix first, let minimal->1, maximum->2
-            n1 = 1.0  # minimal limit
-            n2 = 2.0  # maximum limit
-            dmax = num.amax(corrmatrix, axis=None, keepdims=True)
-            dmin = num.amin(corrmatrix, axis=None, keepdims=True)
-            k = (n2-n1)/(dmax-dmin)
-            b = (dmax*n1-dmin*n2)/(dmax-dmin)
-            corrmatrix = k*corrmatrix + b
-            
-            errmax = num.std(corrmatrix, axis=None)  # the coherence standard deviation over the 3D corrmatrix
-            cb = num.median(corrmatrix, axis=None)  # the median coherence over the 3D corrmatrix
-            
-        f = open(self.output_path+'/'+'catalogue', 'a')
-        f.write(event_t0s+'    '+str(late)+'   '+str(lone)+'   '+str(zb)+'   '+str(errmax)+'   '+str(cb)+'   '+str(cmax)+'\n')
-        f.close()
+            late, lone, elev = origin.cart2geo(xb, yb, eleref)
+            print('late, lone, elev', late, lone, elev)
+            cmax = data[4]
 
-    def coherence_plot(self, event_path, corrmatrix, xax, yax, zax, itrial, normalization=False):
-        nx, ny, nz = num.shape(corrmatrix)
+            # Normalize corrmatrix: min -> 1, max -> 2
+            n1 = 1.0
+            n2 = 2.0
+            dmax = num.amax(corrmatrix)
+            dmin = num.amin(corrmatrix)
+            k = (n2 - n1) / (dmax - dmin)
+            b = (dmax * n1 - dmin * n2) / (dmax - dmin)
+            corrmatrix = k * corrmatrix + b
+
+            errmax = num.std(corrmatrix)
+            cb = num.median(corrmatrix)
+
+        # Ensure output per subfolder
+        catalogue_path = cmfilename + '.catalogue'
+        with open(catalogue_path, 'a') as f:
+            f.write(f"{event_t0s}    {late}   {lone}   {zb}   {errmax}   {cb}   {cmax}\n")
+
+
+    def coherence_plot(self, cmfilename, event_path, corrmatrix, tobj, xax, yax, zax, itrial, normalization=False):
+        
+        nx = tobj.nx
+        ny = tobj.nx
+        nz = tobj.nz
+        corrmatrix = corrmatrix.reshape((nx, ny, nz))
         CXY = num.zeros([ny, nx])
         for i in range(ny):
             for j in range(nx):
@@ -305,7 +383,7 @@ class Loki:
         cbar=plt.colorbar(cs1, ax=axs, orientation='horizontal', shrink=0.6)
         cbar.set_label('Coherence')
 
-        plt.savefig(event_path+'/'+'Coherence_matrix_'+str(itrial)+'.eps')
+        plt.savefig(cmfilename + 'Coherence_matrix_'+str(itrial)+'.png', dpi =300)
         plt.close("all")
         
     

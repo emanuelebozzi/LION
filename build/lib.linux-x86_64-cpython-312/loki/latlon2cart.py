@@ -137,14 +137,23 @@ class Coordinates:
         r0_4=0.5*P*p**2
         r0=r0_1+num.sqrt(r0_2-r0_3-r0_4)
         U=num.sqrt((p-_eccentricity_squared*r0)**2+Z**2)
-        V=num.sqrt((p-_eccentricity_squared*r0)**2+(1-_eccentricity_squared)*Z**2)
-        z0=(Z*_semi_minor_axis**2)/(V*_semi_major_axis)
+        V = num.sqrt((p - _eccentricity_squared * r0)**2 + (1 - _eccentricity_squared) * Z**2)
+        z0 = (Z * _semi_minor_axis**2) / (V * _semi_major_axis)
 
-        lat=num.arctan((Z+e*z0)/p)*_rad2deg
-        lon=num.arctan2(Y,X)*_rad2deg
-        ele=(U*(1-(_semi_minor_axis**2)/(V*_semi_major_axis)))/_km2m
+        lat = num.arctan((Z + e * z0) / p) * _rad2deg
+        lon = num.arctan2(Y, X) * _rad2deg
 
-        return lat,lon,ele
+        denominator = V * _semi_major_axis
+        epsilon = 1e-10
+        if abs(denominator) < epsilon:
+            denominator = 1
+            ele = 1
+        else:
+            ele = (U * (1 - (_semi_minor_axis**2) / denominator)) / _km2m
+
+        return lat, lon, ele
+
+
 
 
 

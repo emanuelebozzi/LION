@@ -200,7 +200,15 @@ class Loki:
                                                                 x_stations, y_stations, z_stations,
                                                                 tobj.x, tobj.y, tobj.z,
                                                                 obs_dataP_sta, obs_dataS_sta, npr)
-                    
+
+                elif last_folder == "hybrid":  
+
+                    print('now hybrid thus stacking P*S')                                      
+
+                    iloctime, corrmatrix = location_t0_sta.stacking(tp_mod_sta, ts_mod_sta,
+                                                                x_stations, y_stations, z_stations,
+                                                                tobj.x, tobj.y, tobj.z,
+                                                                obs_dataP_sta, obs_dataS_sta, npr)                    
 
                 else:
 
