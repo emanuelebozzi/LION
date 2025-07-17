@@ -118,18 +118,18 @@ class Loki:
                 label = "hybrid"
                 st = read(os.path.join(event_path, "*"))
                 components = set(tr.stats.channel for tr in st)
-                comps = ['Z'] if len(components) == 1 else ['E', 'N', 'Z']
+                comps = ['E'] if len(components) == 1 else ['E', 'N', 'Z']
             elif last_folder == "hybrid_strain_to_vel":
                 label = "hybrid_strain_to_vel"
                 st = read(os.path.join(event_path, "*"))
                 components = set(tr.stats.channel for tr in st)
-                comps = ['Z'] if len(components) == 1 else ['E', 'N', 'Z']
+                comps = ['E'] if len(components) == 1 else ['E', 'N', 'Z']
             elif last_folder == "stations":
                 label = "stations"
                 comps = ['E', 'N', 'Z']
             elif last_folder == "fiber":
                 label = "fiber"
-                comps = ['Z']
+                comps = ['E']
             else:
                 continue
 
@@ -200,7 +200,15 @@ class Loki:
                                                                 x_stations, y_stations, z_stations,
                                                                 tobj.x, tobj.y, tobj.z,
                                                                 obs_dataP_sta, obs_dataS_sta, npr)
-                    
+
+                elif last_folder == "hybrid":  
+
+                    print('now hybrid thus stacking P*S')                                      
+
+                    iloctime, corrmatrix = location_t0_sta.stacking(tp_mod_sta, ts_mod_sta,
+                                                                x_stations, y_stations, z_stations,
+                                                                tobj.x, tobj.y, tobj.z,
+                                                                obs_dataP_sta, obs_dataS_sta, npr)                    
 
                 else:
 

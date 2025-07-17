@@ -78,7 +78,9 @@ class Stacktraces:
                 self.ytr=self.select_data(self.comp[1], wobj, tobj.db_stations, derivative, normalize)
                 self.ztr=self.select_data(self.comp[2], wobj, tobj.db_stations, derivative, normalize)
             elif len(self.comp)==1:
-                self.ztr=self.select_data(self.comp[0], wobj, tobj.db_stations, derivative, normalize)
+                self.xtr=self.select_data(self.comp[0], wobj, tobj.db_stations, derivative, normalize)
+                self.ytr=self.select_data(self.comp[0], wobj, tobj.db_stations, derivative, normalize)
+
             else:
                 raise ValueError('Traces must have 1 or 3 components!')
 
@@ -136,7 +138,8 @@ class Stacktraces:
 
     def characteristic_function(self, vfunc='erg', hfunc='pca', epsilon=0.001):
         if len(self.comp)==1: 
-            self.cfunc_erg(True)
+            #self.cfunc_erg(True)
+            self.cfunc_pca(epsilon)
 
         else:
             if vfunc=='erg' and hfunc=='pca':
@@ -259,8 +262,8 @@ class Stacktraces:
         ks_p=self.deltat/tshort_p; kl_p=self.deltat/tlong_p;
         ks_s=self.deltat/tshort_s; kl_s=self.deltat/tlong_s;
         if len(self.comp)==1:
-            obs_dataP=LOC_STALTA.recursive_stalta(tshort_p, tlong_p, self.deltat, self.obs_dataV, kl_p, ks_p, norm)
-            obs_dataS=LOC_STALTA.recursive_stalta(tshort_s, tlong_s, self.deltat, self.obs_dataV, kl_s, ks_s, norm)
+            obs_dataP=LOC_STALTA.recursive_stalta(tshort_p, tlong_p, self.deltat, self.obs_dataH, kl_p, ks_p, norm)
+            obs_dataS=LOC_STALTA.recursive_stalta(tshort_s, tlong_s, self.deltat, self.obs_dataH, kl_s, ks_s, norm)
         else: 
             obs_dataP=LOC_STALTA.recursive_stalta(tshort_p, tlong_p, self.deltat, self.obs_dataV, kl_p, ks_p, norm)
             obs_dataS=LOC_STALTA.recursive_stalta(tshort_s, tlong_s, self.deltat, self.obs_dataH, kl_s, ks_s, norm)
