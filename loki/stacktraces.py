@@ -93,7 +93,7 @@ class Stacktraces:
         self.nstation=num.size(self.stations)
         tr=num.zeros([self.nstation,self.ns])
         stream=wobj.stream[comp]
-        #print('comp', comp)
+        print('comp', comp)
         for i,sta in enumerate(self.stations):
             #print ('sta', sta)
             #print ('stream', stream)

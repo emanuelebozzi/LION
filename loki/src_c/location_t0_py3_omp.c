@@ -304,12 +304,12 @@ int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny
            }
                 if (stk0p+stk0s>stkmax){
                 /*if (stk0p*stk0s>stkmax){ */
-                    stkmax=stk0p + stk0s;
+                    stkmax=stk0p+stk0s;
                     /* stkmax=stk0p*stk0s; */ 
                      kmax=k;
                 }
        }
-        corrmatrix[i]=sqrt(stkmax)/((float) nsta);
+        corrmatrix[i]=stkmax/((float) nsta);
 
         /*printf("corrmatrix = %lf\n", corrmatrix[i]);*/
 
