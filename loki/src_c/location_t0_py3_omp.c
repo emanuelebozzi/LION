@@ -184,19 +184,24 @@ static PyMethodDef module_methods[]={
       return m;
   };
   
-#include <time.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 #include <omp.h>
+#include <time.h>
 
 typedef struct {
     int ix, iy, iz;
     int itime;
     double score;
+    double nhx, nhy, nhz; // neighborhood half-widths
 } Sample;
 
-double evaluate_point(int ix, int iy, int iz, int nsta, int nsamples, double x[], double y[], double z[], 
-                      double stax[], double stay[], double staz[], int nrs, int nzs, 
+#define TOP_N 10 // number of top points to track
+
+// Evaluate stacking score at a single grid point
+double evaluate_point(int ix, int iy, int iz, int nsta, int nsamples, double x[], double y[], double z[],
+                      double stax[], double stay[], double staz[], int nrs, int nzs,
                       int itp[nrs][nzs], int its[nrs][nzs],
                       double stackf_p[nsta][nsamples], double stackf_s[nsta][nsamples],
                       int *best_time)
@@ -206,7 +211,7 @@ double evaluate_point(int ix, int iy, int iz, int nsta, int nsamples, double x[]
     double dz = z[1]-z[0];
     double stkmax = -1.0;
 
-    for (int j=0;j<nsta;j++){
+    for(int j=0;j<nsta;j++){
         double rdist = sqrt(pow(x[ix]-stax[j],2) + pow(y[iy]-stay[j],2));
         double zdist = z[iz];
         int rdist_ind = floor(rdist/dx);
@@ -221,15 +226,15 @@ double evaluate_point(int ix, int iy, int iz, int nsta, int nsamples, double x[]
     }
 
     int best_k = 0;
-    for (int k=0;k<nsamples;k++){
+    for(int k=0;k<nsamples;k++){
         double stk0p=0, stk0s=0;
-        for (int j=0;j<nsta;j++){
+        for(int j=0;j<nsta;j++){
             int ip = tp[j]+k;
             int is = ts[j]+k;
-            if (ip<nsamples) stk0p += stackf_p[j][ip];
-            if (is<nsamples) stk0s += stackf_s[j][is];
+            if(ip<nsamples) stk0p += stackf_p[j][ip];
+            if(is<nsamples) stk0s += stackf_s[j][is];
         }
-        if (stk0p+stk0s>stkmax){
+        if(stk0p+stk0s>stkmax){
             stkmax = stk0p+stk0s;
             best_k = k;
         }
@@ -238,33 +243,34 @@ double evaluate_point(int ix, int iy, int iz, int nsta, int nsamples, double x[]
     return stkmax / nsta;
 }
 
-int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny, long int nz, 
-             long int nsamples, long int nxyz, int itp[nrs][nzs], int its[nrs][nzs], 
-             double stax[nsta], double stay[nsta], double staz[nsta], double x[nx], double y[ny], double z[nz], 
-             double stackf_p[nsta][nsamples], double stackf_s[nsta][nsamples], 
+// Full Neighborhood Algorithm stacking function
+int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny, long int nz,
+             long int nsamples, long int nxyz, int itp[nrs][nzs], int its[nrs][nzs],
+             double stax[nsta], double stay[nsta], double staz[nsta], double x[nx], double y[ny], double z[nz],
+             double stackf_p[nsta][nsamples], double stackf_s[nsta][nsamples],
              double corrmatrix[nxyz], long int iloc[3], long int *itime, long int nproc)
 {
-    int initial_samples = 100;      // few random starting points
-    int max_total_samples = 5000;  // total samples
-    int iter = 0;
     srand(time(NULL));
     omp_set_num_threads(nproc);
 
-    Sample *samples = malloc(max_total_samples*sizeof(Sample));
-    int ns = 0;
+    int initial_samples = 5000;      // initial random points
+    int max_total_samples = 50000;  // total iterations
+    int batch_size = 50;           // points evaluated per iteration
 
+    Sample *samples = malloc(max_total_samples * sizeof(Sample));
+    Sample top_points[TOP_N];
+    int ns = 0;
     double corrmax = -1.0;
 
-    // Step 1: initial random points
+    // --- Step 1: initial random sampling ---
     #pragma omp parallel for
-    for (int s=0;s<initial_samples;s++){
+    for(int s=0;s<initial_samples;s++){
         int ix = rand()%nx;
         int iy = rand()%ny;
         int iz = rand()%nz;
         int best_time;
         double score = evaluate_point(ix, iy, iz, nsta, nsamples, x, y, z, stax, stay, staz,
                                       nrs, nzs, itp, its, stackf_p, stackf_s, &best_time);
-
         #pragma omp critical
         {
             samples[ns].ix = ix;
@@ -272,46 +278,92 @@ int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny
             samples[ns].iz = iz;
             samples[ns].itime = best_time;
             samples[ns].score = score;
+            samples[ns].nhx = nx/4.0;
+            samples[ns].nhy = ny/4.0;
+            samples[ns].nhz = nz/4.0;
             ns++;
 
-            if (score > corrmax){
+            corrmatrix[ix*ny*nz + iy*nz + iz] = score;
+            if(score>corrmax){
                 corrmax = score;
-                iloc[0] = ix; iloc[1] = iy; iloc[2] = iz;
+                iloc[0]=ix; iloc[1]=iy; iloc[2]=iz;
                 *itime = best_time;
             }
-            corrmatrix[ix*ny*nz + iy*nz + iz] = score;
         }
     }
 
-    // Step 2: iterative neighborhood sampling
-    while (ns < max_total_samples){
-        // pick a sample weighted by score for neighborhood
-        int idx = rand() % ns;
-        Sample parent = samples[idx];
+    // Initialize top points
+    for(int i=0;i<TOP_N;i++) top_points[i] = samples[i];
 
-        // define neighborhood size (can shrink with iteration)
-        int nh = fmax(1, nx/10);  // example neighborhood
-        int ix = fmin(nx-1, fmax(0, parent.ix + (rand()%(2*nh+1)-nh)));
-        int iy = fmin(ny-1, fmax(0, parent.iy + (rand()%(2*nh+1)-nh)));
-        int iz = fmin(nz-1, fmax(0, parent.iz + (rand()%(2*nh+1)-nh)));
+    // --- Step 2: iterative batch neighborhood sampling ---
+    while(ns<max_total_samples){
+        #pragma omp parallel for
+        for(int b=0;b<batch_size;b++){
+            // pick a random parent from top points
+            int pidx = rand()%TOP_N;
+            Sample parent = top_points[pidx];
 
-        int best_time;
-        double score = evaluate_point(ix, iy, iz, nsta, nsamples, x, y, z, stax, stay, staz,
-                                      nrs, nzs, itp, its, stackf_p, stackf_s, &best_time);
+            // --- Step 2a: effective neighborhood near boundaries ---
+            double nhx_eff = fmin(parent.nhx, fmin(parent.ix, nx-1-parent.ix));
+            double nhy_eff = fmin(parent.nhy, fmin(parent.iy, ny-1-parent.iy));
+            double nhz_eff = fmin(parent.nhz, fmin(parent.iz, nz-1-parent.iz));
 
-        samples[ns].ix = ix;
-        samples[ns].iy = iy;
-        samples[ns].iz = iz;
-        samples[ns].itime = best_time;
-        samples[ns].score = score;
-        ns++;
+            // --- Step 2b: uniform random offset ---
+            double dx_off = ((double)rand()/RAND_MAX - 0.5)*2*nhx_eff;
+            double dy_off = ((double)rand()/RAND_MAX - 0.5)*2*nhy_eff;
+            double dz_off = ((double)rand()/RAND_MAX - 0.5)*2*nhz_eff;
 
-        corrmatrix[ix*ny*nz + iy*nz + iz] = score;
+            // --- Step 2c: mirror boundary handling ---
+            int ix = parent.ix + (int)round(dx_off);
+            if(ix < 0) ix = -ix;
+            if(ix >= nx) ix = 2*nx - 2 - ix;
 
-        if (score > corrmax){
-            corrmax = score;
-            iloc[0] = ix; iloc[1] = iy; iloc[2] = iz;
-            *itime = best_time;
+            int iy = parent.iy + (int)round(dy_off);
+            if(iy < 0) iy = -iy;
+            if(iy >= ny) iy = 2*ny - 2 - iy;
+
+            int iz = parent.iz + (int)round(dz_off);
+            if(iz < 0) iz = -iz;
+            if(iz >= nz) iz = 2*nz - 2 - iz;
+
+            int best_time;
+            double score = evaluate_point(ix, iy, iz, nsta, nsamples, x, y, z, stax, stay, staz,
+                                          nrs, nzs, itp, its, stackf_p, stackf_s, &best_time);
+
+            // --- Step 2d: penalize true boundary points ---
+            if(ix==0 || ix==nx-1 || iy==0 || iy==ny-1 || iz==0 || iz==nz-1){
+                score *= 0.95;
+            }
+
+            #pragma omp critical
+            {
+                if(ns<max_total_samples){
+                    samples[ns].ix = ix; samples[ns].iy = iy; samples[ns].iz = iz;
+                    samples[ns].itime = best_time; samples[ns].score = score;
+                    samples[ns].nhx = parent.nhx*0.9; samples[ns].nhy = parent.nhy*0.9; samples[ns].nhz = parent.nhz*0.9;
+                    ns++;
+
+                    corrmatrix[ix*ny*nz + iy*nz + iz] = score;
+                    if(score>corrmax){
+                        corrmax = score;
+                        iloc[0]=ix; iloc[1]=iy; iloc[2]=iz;
+                        *itime = best_time;
+                    }
+
+                    // Update top points if better
+                    for(int t=0;t<TOP_N;t++){
+                        if(score>top_points[t].score){
+                            for(int s=TOP_N-1;s>t;s--) top_points[s] = top_points[s-1];
+                            top_points[t].ix=ix; top_points[t].iy=iy; top_points[t].iz=iz;
+                            top_points[t].itime=best_time; top_points[t].score=score;
+                            top_points[t].nhx = samples[ns-1].nhx;
+                            top_points[t].nhy = samples[ns-1].nhy;
+                            top_points[t].nhz = samples[ns-1].nhz;
+                            break;
+                        }
+                    }
+                }
+            }
         }
     }
 
