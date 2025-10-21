@@ -114,7 +114,7 @@ class Loki:
             print(f"Processing event: {event_path}")
             print(f"Processing network type: {last_folder}")
 
-            if last_folder == "hybrid":
+            if "hybrid" in last_folder:
                 label = "hybrid"
                 st = read(os.path.join(event_path, "*"))
                 components = set(tr.stats.channel for tr in st)
@@ -197,7 +197,7 @@ class Loki:
 
                     print('now only stations and thus stacking P*S')                                      
 
-                    iloctime, corrmatrix = location_t0_sta.stacking(tp_mod_sta, ts_mod_sta,
+                    iloctime, corrmatrix = location_t0.stacking(tp_mod_sta, ts_mod_sta,
                                                                 x_stations, y_stations, z_stations,
                                                                 tobj.x, tobj.y, tobj.z,
                                                                 obs_dataP_sta, obs_dataS_sta, npr)
@@ -206,7 +206,7 @@ class Loki:
 
                     print('now hybrid thus stacking P * S')                                      
 
-                    iloctime, corrmatrix = location_t0_sta.stacking(tp_mod_sta, ts_mod_sta,
+                    iloctime, corrmatrix = location_t0.stacking(tp_mod_sta, ts_mod_sta,
                                                                 x_stations, y_stations, z_stations,
                                                                 tobj.x, tobj.y, tobj.z,
                                                                 obs_dataP_sta, obs_dataS_sta, npr)                    

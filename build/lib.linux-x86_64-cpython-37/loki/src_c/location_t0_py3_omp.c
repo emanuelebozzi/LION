@@ -184,144 +184,138 @@ static PyMethodDef module_methods[]={
       return m;
   };
   
+#include <time.h>
+#include <stdlib.h>
+#include <math.h>
+#include <omp.h>
 
-int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny, long int nz, long int nsamples, long int nxyz, int itp[nrs][nzs], int its[nrs][nzs], double stax[nsta], double stay[nsta], double staz[nsta], double x[nx], double y[ny], double z[nz], double stackf_p[nsta][nsamples], double stackf_s[nsta][nsamples], double corrmatrix[nxyz], long int iloc[2],long int *itime, long int nproc) {
-    long int iter, i, j, k;
-    int ix, iy, iz, ip, is, rdist_ind, zdist_ind, kmax;
-    long int tp[nsta], ts[nsta];
-    double xdist, ydist, rdist, zdist, stk0p, stk0s, stkmax;
+typedef struct {
+    int ix, iy, iz;
+    int itime;
+    double score;
+} Sample;
 
-    double dx = x[1] - x[0];   /* traveltime table dx */
-    double dz = z[1] - z[0];   /* traveltime table dz */
+double evaluate_point(int ix, int iy, int iz, int nsta, int nsamples, double x[], double y[], double z[], 
+                      double stax[], double stay[], double staz[], int nrs, int nzs, 
+                      int itp[nrs][nzs], int its[nrs][nzs],
+                      double stackf_p[nsta][nsamples], double stackf_s[nsta][nsamples],
+                      int *best_time)
+{
+    int tp[nsta], ts[nsta];
+    double dx = x[1]-x[0];
+    double dz = z[1]-z[0];
+    double stkmax = -1.0;
 
+    for (int j=0;j<nsta;j++){
+        double rdist = sqrt(pow(x[ix]-stax[j],2) + pow(y[iy]-stay[j],2));
+        double zdist = z[iz];
+        int rdist_ind = floor(rdist/dx);
+        int rdist_ind_next = fmin(rdist_ind+1, nrs-1);
+        rdist_ind = fmin(rdist_ind, nrs-2);
+        int zdist_ind = fmin((int)floor(zdist/dz), nzs-1);
+        double w = rdist/dx - rdist_ind;
+        double tpi = (1-w)*itp[rdist_ind][zdist_ind] + w*itp[rdist_ind_next][zdist_ind];
+        double tsi = (1-w)*its[rdist_ind][zdist_ind] + w*its[rdist_ind_next][zdist_ind];
+        tp[j] = (int)(tpi + 0.5);
+        ts[j] = (int)(tsi + 0.5);
+    }
 
-    iter = 0;
-    double corrmax = -1;
-
-    omp_set_num_threads(nproc);
-
-
-    #pragma omp parallel for shared(corrmax, iloc, itime) private(ix, iy, iz, stkmax, kmax, rdist_ind, zdist_ind, xdist, ydist, zdist, rdist, ip, is, stk0p, stk0s, k, j, tp, ts)
-
-         for (i = 0; i < nxyz; i++) {
-
-            printf("\b\b\b\b\b%ld %%", (100 * iter++) / (nxyz - 2));
-
-            /*printf("i = %li", i);*/
-    
-            ix = i / ((ny) * (nz));   // X index increments 
-            iy = (i / (nz)) % ny;     // Y index increments 
-            iz = (i % (nz));      // Z index increments
-    
-            /*printf("ix = %d, iy = %d, iz = %d\n", ix, iy, iz);*/
-    
-         stkmax=-1.0;
-         kmax= 0;
-  
-         /*For each grid point compute the distance to each station and extract the associated traveltime*/      
-  
-         
-         for(j=0;j<nsta;j++){
-
-            rdist_ind = 0; 
-            zdist_ind = 0;
-
-           /*printf("stax = %lf\n", stax[j]);*/
-           /*printf("stay = %lf\n", stay[j]);*/
-           /*printf("x[ix] = %lf\n", x[ix]);*/
-           /*printf("y[iy] = %lf\n", y[iy]);*/
-
-           xdist = pow((x[ix]-stax[j]), 2);  // Correct way to square
-           ydist = pow((y[iy]-stay[j]), 2);
-           /*printf("xdist = %lf\n", xdist);*/
-           /*printf("ydist = %lf\n", ydist);*/
-           zdist=z[iz];
-           rdist=sqrt(xdist+ydist); /*this is the distance in meters*/
-           /*printf("rdist = %lf\n", rdist);*/
-           /*printf("zdist = %lf\n", zdist);*/
-           /*printf("dx = %lf\n", dx);*/
-           /*printf("dz = %lf\n", dz);*/
-
-/* old code */
-
-
-           /*rdist_ind = (int)floor(rdist / dx);*/   /*round the nearest index*/
-           /*zdist_ind = (int)floor(zdist / dz);*/
-
-           /*if (rdist_ind > nx-1) {*/
-           /* rdist_ind = (int)(nx-1); }*/
-           /* if (zdist_ind > nz-1) {*/
-           /*    zdist_ind = (int)(nz-1); }*/
-               
-           /*tp[j] = itp[rdist_ind][zdist_ind];*/
-           /*ts[j] = its[rdist_ind][zdist_ind];*/
-
-
-/* old code */
-
-/* new code */
-
-            double r_idx = rdist / dx;
-            rdist_ind = (int)floor(r_idx);
-            zdist_ind = (int)floor(zdist / dz);
-            int rdist_ind_next = rdist_ind + 1;
-
-            if (rdist_ind >= nx - 1) {
-               rdist_ind = nx - 2;
-               rdist_ind_next = nx - 1;
-            }
-
-            if (zdist_ind > nz - 1) {
-               zdist_ind = nz - 1;
-            }
-
-            double w = r_idx - rdist_ind;  // interpolation weight (between 0 and 1)
-
-            double tpi = (1 - w) * itp[rdist_ind][zdist_ind] + w * itp[rdist_ind_next][zdist_ind];
-            double tsi = (1 - w) * its[rdist_ind][zdist_ind] + w * its[rdist_ind_next][zdist_ind];
-
-            tp[j] = (long int)(tpi + 0.5);  // round to nearest int, whch avoid e.g., 42.9 to be rounded to 42, but instead to 43
-            ts[j] = (long int)(tsi + 0.5);
-
-
-/* new code */
-
+    int best_k = 0;
+    for (int k=0;k<nsamples;k++){
+        double stk0p=0, stk0s=0;
+        for (int j=0;j<nsta;j++){
+            int ip = tp[j]+k;
+            int is = ts[j]+k;
+            if (ip<nsamples) stk0p += stackf_p[j][ip];
+            if (is<nsamples) stk0s += stackf_s[j][is];
         }
-         for(k=0;k<nsamples;k++){
-           stk0p=0.;
-           stk0s=0.;
-           for(j=0;j<nsta;j++){
-              ip=tp[j] + k;
-              is=ts[j] + k;
-                 if (is<nsamples){
-                    stk0p=stackf_p[j][ip] + stk0p;
-                    stk0s=stackf_s[j][is] + stk0s;
-                 }
-                 else {
-                    stk0p=0. + stk0p;
-                    stk0s=0. + stk0s;
-                 }
-           }
-                if (stk0p+stk0s>stkmax){
-                /*if (stk0p*stk0s>stkmax){ */
-                    stkmax=stk0p + stk0s;
-                    /* stkmax=stk0p*stk0s; */ 
-                     kmax=k;
-                }
-       }
-        corrmatrix[i]=sqrt(stkmax)/((float) nsta);
-
-        /*printf("corrmatrix = %lf\n", corrmatrix[i]);*/
-
-        #pragma omp critical
-        if (corrmatrix[i]>corrmax){
-           corrmax=corrmatrix[i];
-           iloc[0]=i;
-           iloc[1]=rdist_ind;
-           iloc[2]=zdist_ind;
-           *itime=kmax;
+        if (stk0p+stk0s>stkmax){
+            stkmax = stk0p+stk0s;
+            best_k = k;
         }
     }
+    *best_time = best_k;
+    return stkmax / nsta;
+}
+
+int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny, long int nz, 
+             long int nsamples, long int nxyz, int itp[nrs][nzs], int its[nrs][nzs], 
+             double stax[nsta], double stay[nsta], double staz[nsta], double x[nx], double y[ny], double z[nz], 
+             double stackf_p[nsta][nsamples], double stackf_s[nsta][nsamples], 
+             double corrmatrix[nxyz], long int iloc[3], long int *itime, long int nproc)
+{
+    int initial_samples = 100;      // few random starting points
+    int max_total_samples = 5000;  // total samples
+    int iter = 0;
+    srand(time(NULL));
+    omp_set_num_threads(nproc);
+
+    Sample *samples = malloc(max_total_samples*sizeof(Sample));
+    int ns = 0;
+
+    double corrmax = -1.0;
+
+    // Step 1: initial random points
+    #pragma omp parallel for
+    for (int s=0;s<initial_samples;s++){
+        int ix = rand()%nx;
+        int iy = rand()%ny;
+        int iz = rand()%nz;
+        int best_time;
+        double score = evaluate_point(ix, iy, iz, nsta, nsamples, x, y, z, stax, stay, staz,
+                                      nrs, nzs, itp, its, stackf_p, stackf_s, &best_time);
+
+        #pragma omp critical
+        {
+            samples[ns].ix = ix;
+            samples[ns].iy = iy;
+            samples[ns].iz = iz;
+            samples[ns].itime = best_time;
+            samples[ns].score = score;
+            ns++;
+
+            if (score > corrmax){
+                corrmax = score;
+                iloc[0] = ix; iloc[1] = iy; iloc[2] = iz;
+                *itime = best_time;
+            }
+            corrmatrix[ix*ny*nz + iy*nz + iz] = score;
+        }
+    }
+
+    // Step 2: iterative neighborhood sampling
+    while (ns < max_total_samples){
+        // pick a sample weighted by score for neighborhood
+        int idx = rand() % ns;
+        Sample parent = samples[idx];
+
+        // define neighborhood size (can shrink with iteration)
+        int nh = fmax(1, nx/10);  // example neighborhood
+        int ix = fmin(nx-1, fmax(0, parent.ix + (rand()%(2*nh+1)-nh)));
+        int iy = fmin(ny-1, fmax(0, parent.iy + (rand()%(2*nh+1)-nh)));
+        int iz = fmin(nz-1, fmax(0, parent.iz + (rand()%(2*nh+1)-nh)));
+
+        int best_time;
+        double score = evaluate_point(ix, iy, iz, nsta, nsamples, x, y, z, stax, stay, staz,
+                                      nrs, nzs, itp, its, stackf_p, stackf_s, &best_time);
+
+        samples[ns].ix = ix;
+        samples[ns].iy = iy;
+        samples[ns].iz = iz;
+        samples[ns].itime = best_time;
+        samples[ns].score = score;
+        ns++;
+
+        corrmatrix[ix*ny*nz + iy*nz + iz] = score;
+
+        if (score > corrmax){
+            corrmax = score;
+            iloc[0] = ix; iloc[1] = iy; iloc[2] = iz;
+            *itime = best_time;
+        }
+    }
+
+    free(samples);
     printf("\n ------ Event located ------ \n");
     return 0;
 }
