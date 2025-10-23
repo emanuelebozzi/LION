@@ -87,36 +87,57 @@ class Stacktraces:
 
     def select_data(self, comp, wobj, db_stations, derivative, normalize):
         self.stations = tuple(wobj.data_stations & set(db_stations))
-        #self.stations = ['HM01', 'HM02', 'HM03', 'HM04', 'HM05', 'HM06', 'HM08', 'HM09', 'HM10', 'HM11', 'HM12', 'HM13']
-        print('Stations in common: ', self.stations)
-        #self.stations=tuple(wobj.data_stations & db_stations)  # find stations that are in common
-        self.nstation=num.size(self.stations)
-        tr=num.zeros([self.nstation,self.ns])
-        stream=wobj.stream[comp]
-        print('comp', comp)
-        for i,sta in enumerate(self.stations):
-            #print ('sta', sta)
-            #print ('stream', stream)
-            nstr=num.size(stream[sta][2])
-            idt=int((self.dtime_max-stream[sta][0]).total_seconds()/self.deltat)
-            tr[i,0:nstr-idt]=stream[sta][2][idt:]
-            
+        self.nstation = num.size(self.stations)
+        tr = num.zeros([self.nstation, self.ns])
+        stream = wobj.stream[comp]
+        stream = {str(k).strip(): v for k, v in stream.items()}  # normalize keys
+
+        for i, sta in enumerate(self.stations):
+            #print(sta)
+            #print('Available stations in stream:', list(stream.keys()))
+            if sta not in stream:
+                print(f"[WARN] Station {sta} not found in stream, skipping.")
+                continue
+
+            # Get the number of available components for this station
+            ncomp = len(stream[sta])
+            if ncomp == 0:
+                print(f"[WARN] Station {sta} has no components, skipping.")
+                continue
+
+            # Choose component safely (last available one if fewer than 3)
+            comp_index = 2 if ncomp > 2 else ncomp - 1
+
+            # Retrieve trace
+            data = stream[sta][comp_index]
+            if data is None or len(data) == 0:
+                print(f"[WARN] Station {sta} component {comp_index} empty, skipping.")
+                continue
+
+            nstr = num.size(data)
+
+            # Compute time offset safely
+            try:
+                idt = int((self.dtime_max - stream[sta][0]).total_seconds() / self.deltat)
+            except Exception as e:
+                print(f"[WARN] Time alignment failed for {sta}: {e}")
+                idt = 0
+
+            tr[i, 0:nstr - idt] = data[idt:]
+
             if derivative:
-                # calculate derivatives of input data
-                tr[i,1:self.ns]=((tr[i,1:]-tr[i,0:self.ns-1])/self.deltat)
-                tr[i,0]=0.
-            
+                tr[i, 1:self.ns] = (tr[i, 1:] - tr[i, :-1]) / self.deltat
+                tr[i, 0] = 0.0
+
             if isinstance(normalize, float):
-                # normalize data only if the absolute maxima is largar than a 
-                # certain input threshold
-                trmax = num.max(num.abs(tr[i,:]))
+                trmax = num.max(num.abs(tr[i, :]))
                 if trmax >= normalize:
-                    tr[i,:]=tr[i,:]/trmax
+                    tr[i, :] = tr[i, :] / trmax
             elif normalize:
-                # normalize data by the absolute data maxima
-                if num.max(num.abs(tr[i,:])) > 0:
-                    tr[i,:]=tr[i,:]/num.max(num.abs(tr[i,:]))
-                
+                trmax = num.max(num.abs(tr[i, :]))
+                if trmax > 0:
+                    tr[i, :] = tr[i, :] / trmax
+
         return tr
 
     def analytic_signal(self, trace):

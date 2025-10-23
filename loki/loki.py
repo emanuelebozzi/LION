@@ -105,7 +105,7 @@ class Loki:
 
 
         for event_path in self.data_tree:
-            self.subdata_path = event_path
+            self.subdata_path = event_path    #this is stations, diber
             rel_path = os.path.relpath(event_path, self.data_path)  # e.g., 'closest_event' or 'ww2_bomb'
             output_dir = os.path.join(self.output_path, rel_path)
             os.makedirs(output_dir, exist_ok=True)
@@ -118,12 +118,13 @@ class Loki:
                 label = "hybrid"
                 st = read(os.path.join(event_path, "*"))
                 components = set(tr.stats.channel for tr in st)
-                print(len(components))
+                print(components)
                 comps = ['E'] if (len(components) == 1 or len(components) == 2) else ['E', 'N', 'Z']
             elif last_folder == "hybrid_strain_to_vel":
                 label = "hybrid_strain_to_vel"
                 st = read(os.path.join(event_path, "*"))
                 components = set(tr.stats.channel for tr in st)
+                print(components)
                 comps = ['E'] if len(components) == 1 else ['E', 'N', 'Z']
             elif last_folder == "stations":
                 label = "stations"
@@ -131,10 +132,18 @@ class Loki:
             elif "fiber" in last_folder:
                 label = "fiber"
                 comps = ['E']
+            elif last_folder == "hybrid_gilbert":
+                label = "hybrid_gilbert"
+                st = read(os.path.join(event_path, "*"))
+                components = set(tr.stats.channel for tr in st)
+                print(components)
+                comps = ['N'] if (len(components) == 1 or len(components) == 2) else ['E', 'N', 'Z']
+            
             else:
                 continue
 
             wobj = waveforms.Waveforms(self.subdata_path, extension_sta="*", comps=comps, freq=None)
+
             sobj = stacktraces.Stacktraces(tobj, wobj, **inputs)
             event = event_path.split('/')[-1]
             #print('event', event)
@@ -211,6 +220,15 @@ class Loki:
                                                                 tobj.x, tobj.y, tobj.z,
                                                                 obs_dataP_sta, obs_dataS_sta, npr)                    
 
+                elif last_folder == "hybrid_gilbert":  
+
+                    print('now hybrid_gilbert thus stacking P * S')                                      
+
+                    iloctime, corrmatrix = location_t0.stacking(tp_mod_sta, ts_mod_sta,
+                                                                x_stations, y_stations, z_stations,
+                                                                tobj.x, tobj.y, tobj.z,
+                                                                obs_dataP_sta, obs_dataS_sta, npr)    
+
                 else:
 
                     iloctime, corrmatrix = location_t0.stacking(tp_mod_sta, ts_mod_sta,
@@ -228,7 +246,7 @@ class Loki:
                 # Use consistent .loc filenames: event name only, no label appended
                 cmfilename = f"{output_dir}/{event}" if ntrial > 1 else f"{output_dir}/{event}"
 
-                print('cmfilename', cmfilename)
+                #print('cmfilename', cmfilename)
 
                 mode = 'a' if i > 0 else 'w'
                 with open(cmfilename + '.loc', mode) as out_file:
@@ -298,7 +316,7 @@ class Loki:
             yb = data[2] * 1000
             zb = data[3]  # depth in km
             late, lone, elev = origin.cart2geo(xb, yb, eleref)
-            print('late, lone, elev', late, lone, elev)
+            #print('late, lone, elev', late, lone, elev)
             cmax = data[4]
 
             # Normalize corrmatrix: min -> 1, max -> 2
