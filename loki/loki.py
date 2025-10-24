@@ -117,28 +117,44 @@ class Loki:
             if "hybrid" in last_folder:
                 label = "hybrid"
                 st = read(os.path.join(event_path, "*"))
-                components = set(tr.stats.channel for tr in st)
-                print(components)
-                comps = ['E'] if (len(components) == 1 or len(components) == 2) else ['E', 'N', 'Z']
+                # get last-letter channel codes present (E,N,Z,...)
+                components = set(tr.stats.channel[-1] for tr in st)
+                print("components in folder:", components)
+                # preserve preferred ordering E, N, Z
+                pref = ['E', 'N', 'Z']
+                comps = [c for c in pref if c in components]
+                # if there are other component letters (rare), append them
+                other = sorted([c for c in components if c not in pref])
+                comps += other
+
             elif last_folder == "hybrid_strain_to_vel":
                 label = "hybrid_strain_to_vel"
                 st = read(os.path.join(event_path, "*"))
-                components = set(tr.stats.channel for tr in st)
-                print(components)
-                comps = ['E'] if len(components) == 1 else ['E', 'N', 'Z']
+                components = set(tr.stats.channel[-1] for tr in st)
+                print("components in folder:", components)
+                pref = ['E', 'N', 'Z']
+                comps = [c for c in pref if c in components]
+                other = sorted([c for c in components if c not in pref])
+                comps += other
+
             elif last_folder == "stations":
                 label = "stations"
                 comps = ['E', 'N', 'Z']
+
             elif "fiber" in last_folder:
                 label = "fiber"
                 comps = ['E']
+
             elif last_folder == "hybrid_gilbert":
                 label = "hybrid_gilbert"
                 st = read(os.path.join(event_path, "*"))
-                components = set(tr.stats.channel for tr in st)
-                print(components)
-                comps = ['N'] if (len(components) == 1 or len(components) == 2) else ['E', 'N', 'Z']
-            
+                components = set(tr.stats.channel[-1] for tr in st)
+                print("components in folder:", components)
+                pref = ['E', 'N', 'Z']
+                comps = [c for c in pref if c in components]
+                other = sorted([c for c in components if c not in pref])
+                comps += other
+
             else:
                 continue
 
