@@ -103,6 +103,10 @@ class Loki:
         ts = tobj.load_traveltimes('S', model, precision)
         tobj.load_station_info()
 
+        #tobj.x = tobj.x[0:len(tobj.x)-1]. #if nz different from nx,ny
+        #tobj.y = tobj.y[0:len(tobj.y)-1]
+
+
 
         for event_path in self.data_tree:
             self.subdata_path = event_path    #this is stations, diber
@@ -158,13 +162,19 @@ class Loki:
             else:
                 continue
 
+            print('waveforms class')
+
             wobj = waveforms.Waveforms(self.subdata_path, extension_sta="*", comps=comps, freq=None)
+
+            print('stacktraces class')
 
             sobj = stacktraces.Stacktraces(tobj, wobj, **inputs)
             event = event_path.split('/')[-1]
             #print('event', event)
             #output_dir = os.path.join(self.output_path, event)
             #os.makedirs(output_dir, exist_ok=True)
+
+            print(tobj.nxz)
 
             tp_modse = num.ascontiguousarray(tp['HM00'].reshape(tobj.nxz, 1), dtype=num.float64)
             ts_modse = num.ascontiguousarray(ts['HM00'].reshape(tobj.nxz, 1), dtype=num.float64)
@@ -197,6 +207,7 @@ class Loki:
                     else:
                         nshort_p_sta = int(tshortp[i] // sobj.deltat)
                         nshort_s_sta = int(tshorts[i] // sobj.deltat)
+                        
                     obs_dataP_sta, obs_dataS_sta = sobj.loc_stalta(nshort_p_sta, nshort_s_sta, slrat, norm=1)
                 else:
                     obs_dataP_sta = sobj.obs_dataV_sta
@@ -209,6 +220,8 @@ class Loki:
                     y_stations.append(lat)
                     z_stations.append(depth)
 
+                #print(z_stations)
+
                 tp_mod_sta = num.ascontiguousarray(tp_mod_sta.reshape(tobj.nx, tobj.nz), dtype=num.int32)
                 ts_mod_sta = num.ascontiguousarray(ts_mod_sta.reshape(tobj.nx, tobj.nz), dtype=num.int32)
                 x_stations = num.ascontiguousarray(x_stations, dtype=num.float64)
@@ -216,6 +229,11 @@ class Loki:
                 z_stations = num.ascontiguousarray(z_stations, dtype=num.float64)
                 obs_dataP_sta = num.ascontiguousarray(obs_dataP_sta, dtype=num.float64)
                 obs_dataS_sta = num.ascontiguousarray(obs_dataS_sta, dtype=num.float64)
+
+
+                print(tobj.nx, tobj.nz)
+                print('Starting stacking')
+
 
 
                 if last_folder == "stations":  
@@ -280,6 +298,7 @@ class Loki:
                     best_trial_index = i  # <--- Add this line
 
             if event_t0s_final and corrmatrix_best is not None:
+                print(tobj.x, tobj.y, tobj.z)
                 try:
                     self.catalogue_creation(cmfilename, event, event_t0s_final, tobj.lat0, tobj.lon0, ntrial, corrmatrix_best, label)
                     # ---- Coherence Plot ----
@@ -358,6 +377,9 @@ class Loki:
         nx = tobj.nx
         ny = tobj.nx
         nz = tobj.nz
+
+         
+
         corrmatrix = corrmatrix.reshape((nx, ny, nz))
         CXY = num.zeros([ny, nx])
         for i in range(ny):

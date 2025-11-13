@@ -128,7 +128,7 @@ static PyObject *py_stacking(PyObject *self, PyObject *args){
     /* find the dimension of obs_data and stalta */
     nsta = (long int)PyArray_DIM(stackf_p, 0);
     nsamples = (long int)PyArray_DIM(stackf_p, 1);
-    nx = (long int)PyArray_DIM(x, 0);
+    nx =(long int)PyArray_DIM(x, 0);
     ny = (long int)PyArray_DIM(y, 0);
     nz = (long int)PyArray_DIM(z, 0);
     nrs = (int)PyArray_DIM(itp, 0);
@@ -185,11 +185,15 @@ static PyMethodDef module_methods[]={
   };
   
 
+/* new section voronoi-inspired grid search (Sambridge, 1999) */
+
 #include <stdlib.h>
 #include <math.h>
 #include <omp.h>
 #include <stdio.h>
 
+
+/* Your existing stacking function with minimal modifications to add progress bar */
 int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny, long int nz, long int nsamples, long int nxyz,
              int itp[nrs][nzs], int its[nrs][nzs],
              double stax[nsta], double stay[nsta], double staz[nsta],
@@ -204,14 +208,12 @@ int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny
     double stk0p, stk0s, stkmax;
     double corrmax = -1.0;
 
-    /* safety: grid spacings (fallback if only one point) */
     double dx = (nx > 1) ? (x[1] - x[0]) : 1.0;
     double dz = (nz > 1) ? (z[1] - z[0]) : 1.0;
 
     omp_set_num_threads((int)nproc);
 
-    /***** Step A: build uniform seeds (coarse sampling) *****/
-    /* choose number of seeds on coarse sampling */
+    /* Step A: seeds */
     int nseed = (int)floor(sqrt((double)nxyz)) *2;
     if(nseed < 1) nseed = 1;
 
@@ -227,7 +229,6 @@ int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny
         return -1;
     }
 
-    /* distribute seeds approximately uniformly in the 3D grid */
     int ndiv = (int)round(pow((double)nseed, 1.0/3.0));
     if(ndiv < 1) ndiv = 1;
     long int count = 0;
@@ -246,53 +247,73 @@ int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny
             }
         }
     }
-    /* real nseed might be count if limited */
     nseed = (int)count;
 
-    /***** Step B: compute coarse stacking at each seed *****/
+    /* Step B: coarse stacking */
     #pragma omp parallel for private(ix,iy,iz,j,k,ip,is,xdist,ydist,rdist,zdist,rdist_ind,zdist_ind,stk0p,stk0s,stkmax)
     for(int si = 0; si < nseed; si++){
         ix = seed_ix[si];
         iy = seed_iy[si];
         iz = seed_iz[si];
 
-        /* allocate per-iteration travel time arrays to avoid races */
         long int *tp = (long int*) malloc((size_t)nsta * sizeof(long int));
         long int *ts = (long int*) malloc((size_t)nsta * sizeof(long int));
         if(!tp || !ts){
-            /* if malloc fails inside thread, skip this seed */
             if(tp) free(tp);
             if(ts) free(ts);
             seed_coherence[si] = -1.0;
             continue;
         }
 
-        /* compute travel times for each station (interpolating over itp/its) */
         for(j = 0; j < nsta; j++){
+            /* compute horizontal and vertical separations */
             xdist = (x[ix] - stax[j]) * (x[ix] - stax[j]);
             ydist = (y[iy] - stay[j]) * (y[iy] - stay[j]);
-            zdist = z[iz];
+
+            /* mirror vertical separation for homogeneous model */
+            zdist = z[iz] - staz[j];
+
             rdist = sqrt(xdist + ydist);
 
+            /* fractional indices in r and z */
             double r_idx = rdist / dx;
-            rdist_ind = (int)floor(r_idx);
-            zdist_ind = (int)floor(zdist / dz);
+            int rdist_ind = (int)floor(r_idx);
+            double wr = r_idx - rdist_ind;
 
-            /* clamp indices to itp/its dimensions */
-            if(rdist_ind < 0) rdist_ind = 0;
-            if(rdist_ind >= nrs - 1) rdist_ind = (int)nrs - 2;
-            if(zdist_ind < 0) zdist_ind = 0;
-            if(zdist_ind >= nzs - 1) zdist_ind = (int)nzs - 2;
+            double z_idx = zdist / dz;
+            int zdist_ind = (int)floor(z_idx);
+            double wz = z_idx - zdist_ind;
 
-            double w = r_idx - (double)rdist_ind;
-            double tpi = (1.0 - w) * (double)itp[rdist_ind][zdist_ind] + w * (double)itp[rdist_ind + 1][zdist_ind];
-            double tsi = (1.0 - w) * (double)its[rdist_ind][zdist_ind] + w * (double)its[rdist_ind + 1][zdist_ind];
+            /* clamp indices to valid interpolation range and fix weights at edges */
+            if(rdist_ind < 0){ rdist_ind = 0; wr = 0.0; }
+            if(rdist_ind >= nrs - 1){ rdist_ind = nrs - 2; wr = 0.0; }
+            if(zdist_ind < 0){ zdist_ind = 0; wz = 0.0; }
+            if(zdist_ind >= nzs - 1){ zdist_ind = nzs - 2; wz = 0.0; }
 
+            /* bilinear interpolation of traveltime tables (itp and its are 2D [r][z]) */
+            double t00p = (double)itp[rdist_ind][zdist_ind];
+            double t10p = (double)itp[rdist_ind + 1][zdist_ind];
+            double t01p = (double)itp[rdist_ind][zdist_ind + 1];
+            double t11p = (double)itp[rdist_ind + 1][zdist_ind + 1];
+
+            double t00s = (double)its[rdist_ind][zdist_ind];
+            double t10s = (double)its[rdist_ind + 1][zdist_ind];
+            double t01s = (double)its[rdist_ind][zdist_ind + 1];
+            double t11s = (double)its[rdist_ind + 1][zdist_ind + 1];
+
+            /* bilinear weights */
+            double one_wr = 1.0 - wr;
+            double one_wz = 1.0 - wz;
+
+            double tpi = one_wr * one_wz * t00p + wr * one_wz * t10p + one_wr * wz * t01p + wr * wz * t11p;
+            double tsi = one_wr * one_wz * t00s + wr * one_wz * t10s + one_wr * wz * t01s + wr * wz * t11s;
+
+            /* convert to integer sample indices (same rounding policy as before) */
             tp[j] = (long int)(tpi + 0.5);
             ts[j] = (long int)(tsi + 0.5);
+
         }
 
-        /* stacking across samples for this seed */
         stkmax = -1.0;
         for(k = 0; k < nsamples; k++){
             stk0p = 0.0; stk0s = 0.0;
@@ -313,26 +334,32 @@ int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny
         free(tp); free(ts);
     }
 
-    /***** Step C: fill coarse corrmatrix via Voronoi assignment (optional but kept) *****/
-    #pragma omp parallel for private(ix,iy,iz,i,j,xdist,ydist,rdist,zdist)
-    for(long int gi = 0; gi < nxyz; gi++){
-        ix = (int)(gi / (ny * nz));
-        iy = (int)((gi / nz) % ny);
-        iz = (int)(gi % nz);
+    /* Step C: localized assignment only near top seeds */
+    for (int s = 0; s < nseed; s++) {
+        int ix0 = seed_ix[s];
+        int iy0 = seed_iy[s];
+        int iz0 = seed_iz[s];
 
-        double min_dist2 = 1e300;
-        int nearest = 0;
-        for(int s = 0; s < nseed; s++){
-            double dx2 = x[ix] - x[seed_ix[s]]; dx2 *= dx2;
-            double dy2 = y[iy] - y[seed_iy[s]]; dy2 *= dy2;
-            double dz2 = z[iz] - z[seed_iz[s]]; dz2 *= dz2;
-            double d2 = dx2 + dy2 + dz2;
-            if(d2 < min_dist2){ min_dist2 = d2; nearest = s; }
+        int neigh = 2; // small neighborhood around each seed (tunable)
+        int ix_min = max(0, ix0 - neigh);
+        int ix_max = min((int)nx - 1, ix0 + neigh);
+        int iy_min = max(0, iy0 - neigh);
+        int iy_max = min((int)ny - 1, iy0 + neigh);
+        int iz_min = max(0, iz0 - neigh);
+        int iz_max = min((int)nz - 1, iz0 + neigh);
+
+        for (int ix = ix_min; ix <= ix_max; ix++) {
+            for (int iy = iy_min; iy <= iy_max; iy++) {
+                for (int iz = iz_min; iz <= iz_max; iz++) {
+                    long int idx = (long int)ix * (long int)ny * (long int)nz +
+                                (long int)iy * (long int)nz + (long int)iz;
+                    corrmatrix[idx] = seed_coherence[s];
+                }
+            }
         }
-        corrmatrix[gi] = seed_coherence[nearest];
     }
 
-    /***** Step D: choose top N seeds and refine around each *****/
+    /* Step D: top N seeds */
     int N_top = 25;
     if(nseed < N_top) N_top = nseed;
 
@@ -361,7 +388,28 @@ int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny
         }
     }
 
-    int neigh = 5; /* radius in grid cells around seed for refinement */
+    int neigh = 30; /* radius in grid cells around seed for refinement */
+
+    /* Progress counter */
+    long int total_cells = 0;
+    for(int t = 0; t < N_top; t++){
+        int sid = top_seeds[t];
+        if(sid < 0) continue;
+        int ix0 = seed_ix[sid];
+        int iy0 = seed_iy[sid];
+        int iz0 = seed_iz[sid];
+
+        long int ix_min = max(0, ix0 - neigh);
+        long int ix_max = min((int)nx - 1, ix0 + neigh);
+        long int iy_min = max(0, iy0 - neigh);
+        long int iy_max = min((int)ny - 1, iy0 + neigh);
+        long int iz_min = max(0, iz0 - neigh);
+        long int iz_max = min((int)nz - 1, iz0 + neigh);
+
+        total_cells += (ix_max - ix_min + 1) * (iy_max - iy_min + 1) * (iz_max - iz_min + 1);
+    }
+
+    long int processed_cells = 0;
 
     for(int t = 0; t < N_top; t++){
         int sid = top_seeds[t];
@@ -383,8 +431,7 @@ int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny
         long int nrefine_z = iz_max - iz_min + 1;
         long int nrefine = nrefine_x * nrefine_y * nrefine_z;
 
-        /* refine local neighborhood */
-        #pragma omp parallel for private(i, ix, iy, iz, j, k, ip, is, xdist, ydist, zdist, rdist, rdist_ind, zdist_ind, stk0p, stk0s, stkmax)
+        #pragma omp parallel for private(i, ix, iy, iz, j, k, ip, is, xdist, ydist, zdist, rdist, rdist_ind, zdist_ind, stk0p, stk0s, stkmax) 
         for(long int ri = 0; ri < nrefine; ri++){
             ix = (int)(ix_min + ri / (nrefine_y * nrefine_z));
             iy = (int)(iy_min + (ri / nrefine_z) % nrefine_y);
@@ -394,7 +441,6 @@ int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny
 
             long int idx = (long int)ix * (long int)ny * (long int)nz + (long int)iy * (long int)nz + (long int)iz;
 
-            /* allocate tp/ts per iteration to avoid races */
             long int *tp = (long int*) malloc((size_t)nsta * sizeof(long int));
             long int *ts = (long int*) malloc((size_t)nsta * sizeof(long int));
             if(!tp || !ts){
@@ -406,7 +452,9 @@ int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny
             for(j = 0; j < nsta; j++){
                 xdist = (x[ix] - stax[j]) * (x[ix] - stax[j]);
                 ydist = (y[iy] - stay[j]) * (y[iy] - stay[j]);
-                zdist = z[iz];
+                /* zdist = z[iz] -staz[j]; */
+                /* mirror vertical separation for homogeneous model */
+                zdist = z[iz] - staz[j];
                 rdist = sqrt(xdist + ydist);
 
                 double r_idx = rdist / dx;
@@ -450,23 +498,24 @@ int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny
             {
                 if(corrmatrix[idx] > corrmax){
                     corrmax = corrmatrix[idx];
-                    /* store location as linear index and grid coords (iloc[0]=linear) */
                     iloc[0] = idx;
                     iloc[1] = ix;
                     iloc[2] = iy;
-                    /* you can change what iloc contains; here I store (linear, ix, iy) */
                     *itime = kmax;
                 }
+                processed_cells++;
+                if ((100 * processed_cells / total_cells) % 5 == 0) printf("\rLocation progress: %d%%", 100 * processed_cells / total_cells), fflush(stdout);
+                fflush(stdout);
             }
 
             free(tp); free(ts);
-        } /* end refine parallel for */
-    } /* end for each top seed */
+        }
+    }
 
-    /* cleanup */
+    printf("\n");
+
     free(top_seeds); free(top_values);
     free(seed_indices); free(seed_coherence); free(seed_ix); free(seed_iy); free(seed_iz);
 
-    /* done */
     return 0;
 }

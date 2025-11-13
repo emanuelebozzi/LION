@@ -9,7 +9,10 @@ class Stacktraces:
         #check input objects tobj=traveltime_object wobj=Raw_waveform_object
         self.check_sampling_rate(wobj)
         self.check_starting_time(wobj)
-        
+        # Initialize default scaling factors (no scaling)
+        self.scaleH = 1.0
+        self.scaleZ = 1.0
+
         if ('vfunc' in inputs) or ('hfunc' in inputs):
             # need to calculate characteristic functions from input data
             vfunc=inputs['vfunc']
@@ -63,43 +66,72 @@ class Stacktraces:
 
 
     def loki_input(self, wobj, tobj, derivative, direct_input=False, normalize=True):
-            if direct_input:
-                # directly use input data as characteristic function
-                self.obs_dataV = self.select_data('P', wobj, tobj.db_stations, derivative, normalize)
-                self.obs_dataH = self.select_data('S', wobj, tobj.db_stations, derivative, normalize)
-                return
+        if direct_input:
+            # directly use input data as characteristic function
+            self.obs_dataV = self.select_data('P', wobj, tobj.db_stations, derivative, normalize)
+            self.obs_dataH = self.select_data('S', wobj, tobj.db_stations, derivative, normalize)
+            return
 
-            # Build xtr, ytr, ztr arrays from whichever components are available.
-            # wobj.stream has keys like 'E','N','Z' (each mapping station -> [dtime, delta, data])
-            available_comp = list(wobj.stream.keys())
-            self.comp = tuple(available_comp)
+        # Build xtr, ytr, ztr arrays from whichever components are available.
+        # wobj.stream has keys like 'E','N','Z' (each mapping station -> [dtime, delta, data])
+        available_comp = list(wobj.stream.keys())
+        print(f"[INFO] Available components in data: {available_comp}")
+        self.comp = tuple(available_comp)
 
-            # fetch arrays for each component if present, else zeros
-            # select_data returns array shape (nstation, ns)
-            # We'll use names xtr -> E, ytr -> N, ztr -> Z
-            # If a component is missing, select_data will return zeros.
+        # fetch arrays for each component if present, else zeros
+        # select_data returns array shape (nstation, ns)
+        # We'll use names xtr -> E, ytr -> N, ztr -> Z
+        # If a component is missing, select_data will return zeros.
+
+        # --- build data arrays ---
+        if len(available_comp) == 1:
+            # find which comp is present and copy to both xtr and ytr if needed
+            only = available_comp[0]
+            if only == 'E':
+                self.xtr = self.select_data('E', wobj, tobj.db_stations, derivative, normalize)
+                self.ytr = self.xtr.copy()
+                self.ztr = num.zeros_like(self.xtr)
+            elif only == 'N':
+                self.ytr = self.select_data('N', wobj, tobj.db_stations, derivative, normalize)
+                self.xtr = self.ytr.copy()
+                self.ztr = num.zeros_like(self.ytr)
+            elif only == 'Z':
+                self.ztr = self.select_data('Z', wobj, tobj.db_stations, derivative, normalize)
+                # single vertical: set horizontals to zeros
+                self.xtr = num.zeros_like(self.ztr)
+                self.ytr = num.zeros_like(self.ztr)
+        else:
             self.xtr = self.select_data('E', wobj, tobj.db_stations, derivative, normalize)
             self.ytr = self.select_data('N', wobj, tobj.db_stations, derivative, normalize)
             self.ztr = self.select_data('Z', wobj, tobj.db_stations, derivative, normalize)
 
-            # If only one component exists overall, follow original behavior: make ytr same as xtr
-            # (this retains older code semantics where single-component used as both x and y for horizontal)
-            if len(available_comp) == 1:
-                # find which comp is present and copy to both xtr and ytr if needed
-                only = available_comp[0]
-                if only == 'E':
-                    self.xtr = self.select_data('E', wobj, tobj.db_stations, derivative, normalize)
-                    self.ytr = self.xtr.copy()
-                    self.ztr = num.zeros_like(self.xtr)
-                elif only == 'N':
-                    self.ytr = self.select_data('N', wobj, tobj.db_stations, derivative, normalize)
-                    self.xtr = self.ytr.copy()
-                    self.ztr = num.zeros_like(self.ytr)
-                elif only == 'Z':
-                    self.ztr = self.select_data('Z', wobj, tobj.db_stations, derivative, normalize)
-                    # single vertical: set horizontals to zeros
-                    self.xtr = num.zeros_like(self.ztr)
-                    self.ytr = num.zeros_like(self.ztr)
+        try:
+            # compute total horizontal and vertical energy
+            totalH = num.sum(self.xtr**2 + self.ytr**2)
+            totalZ = num.sum(self.ztr**2)
+
+            if totalH > 0 and totalZ > 0:
+                scaleH = num.sqrt(totalZ / totalH)
+                scaleZ = 1.0  # keep vertical as reference
+
+                self.xtr *= scaleH
+                self.ytr *= scaleH
+                self.ztr *= scaleZ
+
+                self.scaleH = scaleH
+                self.scaleZ = scaleZ
+
+                print(f"[INFO] Component balancing applied (total energy): "
+                    f"H×{scaleH:.3e}, Z×{scaleZ:.3e} "
+                    f"(totalH={totalH:.3e}, totalZ={totalZ:.3e})")
+            else:
+                self.scaleH = 1.0
+                self.scaleZ = 1.0
+                print("[INFO] Skipping H/Z balancing (only one component type present).")
+
+        except Exception as e:
+            print(f"[WARN] Global H/Z balancing failed: {e}")
+
 
     def select_data(self, comp, wobj, db_stations, derivative, normalize):
         """
@@ -110,6 +142,7 @@ class Stacktraces:
         """
         self.stations = tuple(wobj.data_stations & set(db_stations))
         self.nstation = num.size(self.stations)
+        print(f"[INFO] Selecting data for component {comp}, number of stations: {self.nstation}")
         tr = num.zeros([self.nstation, self.ns])
         # get dict for this component, or empty dict if comp not present
         stream_comp = wobj.stream.get(comp, {})
@@ -212,7 +245,7 @@ class Stacktraces:
                 m = num.max(obs_dataV[i, :])
                 if m > 0:
                     obs_dataV[i, :] = obs_dataV[i, :] / m
-            self.obs_dataV = obs_dataV
+            self.obs_dataV = obs_dataV*self.scaleZ
         else:
             # vertical
             obs_dataV = (self.ztr ** 2)
@@ -226,8 +259,8 @@ class Stacktraces:
                     obs_dataH[i, :] = obs_dataH[i, :] / mh
                 if mv > 0:
                     obs_dataV[i, :] = obs_dataV[i, :] / mv
-            self.obs_dataH = obs_dataH
-            self.obs_dataV = obs_dataV
+            self.obs_dataH = obs_dataH*self.scaleH
+            self.obs_dataV = obs_dataV*self.scaleZ
 
     def cfunc_pca(self, epsilon):
         # PCA on horizontal pair (xtr,ytr) — if one horizontal is zeros, PCA will gracefully reduce
@@ -247,7 +280,7 @@ class Stacktraces:
                 obs_dataH[i, j] = (s[0] ** 2)
             if abs(num.max(obs_dataH[i, :])) > 0:
                 obs_dataH[i, :] = (obs_dataH[i, :] / num.max(obs_dataH[i, :])) + epsilon
-        self.obs_dataH = obs_dataH
+        self.obs_dataH = obs_dataH*self.scaleH
 
     def cfunc_cosh(self, coshz):
 
@@ -265,8 +298,8 @@ class Stacktraces:
                     obs_dataH[i,:]=(obs_dataH[i,:]/num.max(obs_dataH[i,:]))
                 if abs(num.max(obs_dataV[i,:])) > 0:
                     obs_dataV[i,:]=(obs_dataV[i,:]/num.max(obs_dataV[i,:]))
-            self.obs_dataH=obs_dataH
-            self.obs_dataV=obs_dataV
+            self.obs_dataH=obs_dataH*self.scaleH
+            self.obs_dataV=obs_dataV*self.scaleZ
 
     def cfunc_pcafull(self, epsilon):
         obs_dataH=num.zeros([self.nstation,self.ns]); obs_dataV=num.zeros([self.nstation,self.ns])
@@ -288,8 +321,8 @@ class Stacktraces:
                 obs_dataH[i,:]=(obs_dataH[i,:]/num.max(obs_dataH[i,:]))+epsilon
             if abs(num.max(obs_dataV[i,:])) > 0:
                 obs_dataV[i,:]=(obs_dataV[i,:]/num.max(obs_dataV[i,:]))
-        self.obs_dataH=obs_dataH
-        self.obs_dataV=obs_dataV
+        self.obs_dataH=obs_dataH*self.scaleH
+        self.obs_dataV=obs_dataV*self.scaleZ
 
 
 
@@ -322,7 +355,7 @@ class Stacktraces:
         else: 
             obs_dataP=LOC_STALTA.recursive_stalta(tshort_p, tlong_p, self.deltat, self.obs_dataV, kl_p, ks_p, norm)
             obs_dataS=LOC_STALTA.recursive_stalta(tshort_s, tlong_s, self.deltat, self.obs_dataH, kl_s, ks_s, norm)
-        return obs_dataP, obs_dataS
+        return obs_dataP*self.scaleZ, obs_dataS*self.scaleH
 
 
     def det_stalta(self, nshort_p, nshort_s, slrat, staltap0, staltas0, thres=0.):

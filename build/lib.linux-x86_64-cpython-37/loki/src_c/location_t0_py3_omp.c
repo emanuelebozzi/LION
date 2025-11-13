@@ -128,7 +128,7 @@ static PyObject *py_stacking(PyObject *self, PyObject *args){
     /* find the dimension of obs_data and stalta */
     nsta = (long int)PyArray_DIM(stackf_p, 0);
     nsamples = (long int)PyArray_DIM(stackf_p, 1);
-    nx = (long int)PyArray_DIM(x, 0);
+    nx =(long int)PyArray_DIM(x, 0);
     ny = (long int)PyArray_DIM(y, 0);
     nz = (long int)PyArray_DIM(z, 0);
     nrs = (int)PyArray_DIM(itp, 0);
@@ -266,26 +266,52 @@ int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny
         }
 
         for(j = 0; j < nsta; j++){
+            /* compute horizontal and vertical separations */
             xdist = (x[ix] - stax[j]) * (x[ix] - stax[j]);
             ydist = (y[iy] - stay[j]) * (y[iy] - stay[j]);
-            zdist = z[iz];
+
+            /* mirror vertical separation for homogeneous model */
+            zdist = z[iz] - staz[j];
+
             rdist = sqrt(xdist + ydist);
 
+            /* fractional indices in r and z */
             double r_idx = rdist / dx;
-            rdist_ind = (int)floor(r_idx);
-            zdist_ind = (int)floor(zdist / dz);
+            int rdist_ind = (int)floor(r_idx);
+            double wr = r_idx - rdist_ind;
 
-            if(rdist_ind < 0) rdist_ind = 0;
-            if(rdist_ind >= nrs - 1) rdist_ind = (int)nrs - 2;
-            if(zdist_ind < 0) zdist_ind = 0;
-            if(zdist_ind >= nzs - 1) zdist_ind = (int)nzs - 2;
+            double z_idx = zdist / dz;
+            int zdist_ind = (int)floor(z_idx);
+            double wz = z_idx - zdist_ind;
 
-            double w = r_idx - (double)rdist_ind;
-            double tpi = (1.0 - w) * (double)itp[rdist_ind][zdist_ind] + w * (double)itp[rdist_ind + 1][zdist_ind];
-            double tsi = (1.0 - w) * (double)its[rdist_ind][zdist_ind] + w * (double)its[rdist_ind + 1][zdist_ind];
+            /* clamp indices to valid interpolation range and fix weights at edges */
+            if(rdist_ind < 0){ rdist_ind = 0; wr = 0.0; }
+            if(rdist_ind >= nrs - 1){ rdist_ind = nrs - 2; wr = 0.0; }
+            if(zdist_ind < 0){ zdist_ind = 0; wz = 0.0; }
+            if(zdist_ind >= nzs - 1){ zdist_ind = nzs - 2; wz = 0.0; }
 
+            /* bilinear interpolation of traveltime tables (itp and its are 2D [r][z]) */
+            double t00p = (double)itp[rdist_ind][zdist_ind];
+            double t10p = (double)itp[rdist_ind + 1][zdist_ind];
+            double t01p = (double)itp[rdist_ind][zdist_ind + 1];
+            double t11p = (double)itp[rdist_ind + 1][zdist_ind + 1];
+
+            double t00s = (double)its[rdist_ind][zdist_ind];
+            double t10s = (double)its[rdist_ind + 1][zdist_ind];
+            double t01s = (double)its[rdist_ind][zdist_ind + 1];
+            double t11s = (double)its[rdist_ind + 1][zdist_ind + 1];
+
+            /* bilinear weights */
+            double one_wr = 1.0 - wr;
+            double one_wz = 1.0 - wz;
+
+            double tpi = one_wr * one_wz * t00p + wr * one_wz * t10p + one_wr * wz * t01p + wr * wz * t11p;
+            double tsi = one_wr * one_wz * t00s + wr * one_wz * t10s + one_wr * wz * t01s + wr * wz * t11s;
+
+            /* convert to integer sample indices (same rounding policy as before) */
             tp[j] = (long int)(tpi + 0.5);
             ts[j] = (long int)(tsi + 0.5);
+
         }
 
         stkmax = -1.0;
@@ -308,23 +334,29 @@ int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny
         free(tp); free(ts);
     }
 
-    /* Step C: Voronoi assignment */
-    #pragma omp parallel for private(ix,iy,iz,i,j,xdist,ydist,rdist,zdist)
-    for(long int gi = 0; gi < nxyz; gi++){
-        ix = (int)(gi / (ny * nz));
-        iy = (int)((gi / nz) % ny);
-        iz = (int)(gi % nz);
+    /* Step C: localized assignment only near top seeds */
+    for (int s = 0; s < nseed; s++) {
+        int ix0 = seed_ix[s];
+        int iy0 = seed_iy[s];
+        int iz0 = seed_iz[s];
 
-        double min_dist2 = 1e300;
-        int nearest = 0;
-        for(int s = 0; s < nseed; s++){
-            double dx2 = x[ix] - x[seed_ix[s]]; dx2 *= dx2;
-            double dy2 = y[iy] - y[seed_iy[s]]; dy2 *= dy2;
-            double dz2 = z[iz] - z[seed_iz[s]]; dz2 *= dz2;
-            double d2 = dx2 + dy2 + dz2;
-            if(d2 < min_dist2){ min_dist2 = d2; nearest = s; }
+        int neigh = 2; // small neighborhood around each seed (tunable)
+        int ix_min = max(0, ix0 - neigh);
+        int ix_max = min((int)nx - 1, ix0 + neigh);
+        int iy_min = max(0, iy0 - neigh);
+        int iy_max = min((int)ny - 1, iy0 + neigh);
+        int iz_min = max(0, iz0 - neigh);
+        int iz_max = min((int)nz - 1, iz0 + neigh);
+
+        for (int ix = ix_min; ix <= ix_max; ix++) {
+            for (int iy = iy_min; iy <= iy_max; iy++) {
+                for (int iz = iz_min; iz <= iz_max; iz++) {
+                    long int idx = (long int)ix * (long int)ny * (long int)nz +
+                                (long int)iy * (long int)nz + (long int)iz;
+                    corrmatrix[idx] = seed_coherence[s];
+                }
+            }
         }
-        corrmatrix[gi] = seed_coherence[nearest];
     }
 
     /* Step D: top N seeds */
@@ -356,7 +388,7 @@ int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny
         }
     }
 
-    int neigh = 5; /* radius in grid cells around seed for refinement */
+    int neigh = 30; /* radius in grid cells around seed for refinement */
 
     /* Progress counter */
     long int total_cells = 0;
@@ -420,7 +452,9 @@ int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny
             for(j = 0; j < nsta; j++){
                 xdist = (x[ix] - stax[j]) * (x[ix] - stax[j]);
                 ydist = (y[iy] - stay[j]) * (y[iy] - stay[j]);
-                zdist = z[iz];
+                /* zdist = z[iz] -staz[j]; */
+                /* mirror vertical separation for homogeneous model */
+                zdist = z[iz] - staz[j];
                 rdist = sqrt(xdist + ydist);
 
                 double r_idx = rdist / dx;
