@@ -130,6 +130,7 @@ class Loki:
                 # if there are other component letters (rare), append them
                 other = sorted([c for c in components if c not in pref])
                 comps += other
+                print("final components used:", comps)
 
             elif last_folder == "hybrid_strain_to_vel":
                 label = "hybrid_strain_to_vel"
@@ -140,6 +141,7 @@ class Loki:
                 comps = [c for c in pref if c in components]
                 other = sorted([c for c in components if c not in pref])
                 comps += other
+                
 
             elif last_folder == "stations":
                 label = "stations"
@@ -201,6 +203,8 @@ class Loki:
 
             for i in range(ntrial):
                 if STALTA:
+
+                    print('hey!')
                     if label == 'fiber':
                         nshort_p_sta = int(tshortp_fiber[i] // sobj.deltat)
                         nshort_s_sta = int(tshorts_fiber[i] // sobj.deltat)
@@ -220,6 +224,67 @@ class Loki:
                     y_stations.append(lat)
                     z_stations.append(depth)
 
+                
+                import numpy as np
+                import matplotlib.pyplot as plt
+
+                # ----------------------------------------
+                # ZERO CHECKING
+                # ----------------------------------------
+
+                print("🔍 Checking for zeros in obs_dataP_sta ...")
+
+                # Does the entire array contain at least one zero?
+                has_any_zero = np.any(obs_dataS_sta == 0)
+                print("Does the array contain at least one zero? ->", has_any_zero)
+
+                # Count zeros per row
+                zero_counts = np.sum(obs_dataS_sta == 0, axis=1)
+
+                for i, count in enumerate(zero_counts):
+                    print(f"Row {i}: {count} zeros")
+
+                # Detect fully zero rows
+                fully_zero_rows = np.where(zero_counts == obs_dataP_sta.shape[1])[0]
+                print("Rows entirely zero:", fully_zero_rows.tolist())
+
+                # ----------------------------------------
+                # PLOTTING SECTION
+                # ----------------------------------------
+
+                fig, axes = plt.subplots(
+                    obs_dataS_sta.shape[0],
+                    1,
+                    figsize=(10, 2 * obs_dataS_sta.shape[0]),
+                    sharex=True
+                )
+
+
+                if obs_dataS_sta.shape[0] <100:  
+                    for i in range(obs_dataS_sta.shape[0]):
+                        axes[i].plot(obs_dataS_sta[i])
+                        axes[i].set_ylabel(f"Row {i}")
+
+                        # Mark subplot in red title if it contains zeros
+                        if zero_counts[i] > 0:
+                            axes[i].set_title(f"{zero_counts[i]} zeros", color="red", fontsize=8)
+
+                    axes[-1].set_xlabel("Index")
+                    plt.tight_layout()
+
+                    # ----------------------------------------
+                    # SAVE TO PDF
+                    # ----------------------------------------
+
+                    pdf_path = "/home/emanuele/data/emanuele/loki-das/bedretto/output_m05/obs_dataP_sta_plots.pdf"
+                    print("Saving figure to:", pdf_path)
+
+                    plt.savefig(pdf_path)
+                    plt.close()
+
+                    print("✅ PDF saved successfully.")
+
+
                 #print(z_stations)
 
                 tp_mod_sta = num.ascontiguousarray(tp_mod_sta.reshape(tobj.nx, tobj.nz), dtype=num.int32)
@@ -229,6 +294,15 @@ class Loki:
                 z_stations = num.ascontiguousarray(z_stations, dtype=num.float64)
                 obs_dataP_sta = num.ascontiguousarray(obs_dataP_sta, dtype=num.float64)
                 obs_dataS_sta = num.ascontiguousarray(obs_dataS_sta, dtype=num.float64)
+
+                print('aaaa',obs_dataP_sta.shape)
+
+
+
+
+                print('bbbb', len(tp_mod_sta))
+
+                print
 
 
                 print(tobj.nx, tobj.nz)

@@ -10,25 +10,23 @@ class Waveforms:
             raise ValueError('Error: data path does not exist')
         try:
             self.load_waveforms(event_path, extension_sta, comps, freq)
-        except:
-            raise WaveformLoadingError('Error: data not read for the event: %s' %(event_path))
+        except Exception:
+            raise WaveformLoadingError('Error: data not read for the event: %s' % (event_path))
         self.station_list()
 
     def station_list(self):
-        data_stalist=[]
+        data_stalist = []
         for comp in (self.stream).keys():
             for sta in (self.stream[comp]).keys():
                 if sta not in data_stalist:
                     data_stalist.append(sta)
-        self.data_stations=set(data_stalist)
-
-        #print('data_stations', self.data_stations)
+        self.data_stations = set(data_stalist)
+        # print('data_stations', self.data_stations)
 
     def load_waveforms(self, event_path, extension_sta, comps, freq):
-        files=os.path.join(event_path,extension_sta)
-        #print('files', files)
-        traces=read(files)
-        
+        files = os.path.join(event_path, extension_sta)
+        traces = read(files)
+
         if freq:
             traces.detrend('demean')
             traces.detrend('linear')
@@ -36,15 +34,26 @@ class Waveforms:
                 traces.filter("highpass", freq=freq[0])
             elif len(freq) == 2:
                 traces.filter("bandpass", freqmin=freq[0], freqmax=freq[1])
-        
-        self.stream={}
+
+        # build stream ONLY for components that actually exist in traces
+        self.stream = {}
+
+        # if comps is None, infer from data
+        if comps is None:
+            comps = sorted(list(set(tr.stats.channel[-1] for tr in traces)))
+
         for comp in comps:
-            self.stream[comp]={}
+            comp_dict = {}
             for tr in traces:
-                #print('tr.stats', tr.stats)
-                if tr.stats.channel[-1]==comp:
-                    dtime=datetime.strptime(str(tr.stats.starttime),"%Y-%m-%dT%H:%M:%S.%fZ")
-                    self.stream[comp][tr.stats.station]=[dtime, tr.stats.delta, tr.data]
+                if tr.stats.channel[-1] == comp:
+                    dtime = datetime.strptime(
+                        str(tr.stats.starttime), "%Y-%m-%dT%H:%M:%S.%fZ"
+                    )
+                    comp_dict[tr.stats.station] = [dtime, tr.stats.delta, tr.data]
+
+            # only keep this component key if at least one trace exists
+            if comp_dict:
+                self.stream[comp] = comp_dict
 
 
 class WaveformLoadingError(Exception):

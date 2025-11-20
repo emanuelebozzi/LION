@@ -8,27 +8,27 @@ To call LOKI you need this file and make it executable (or call python)
 from loki.loki import Loki
 
 db_path = '/home/emanuele/data/emanuele/loki-das/Traveltimes/bedretto'
-data_path = '/home/emanuele/data/emanuele/loki-das/bedretto/m_new/hybrid'
-output_path = '/home/emanuele/data/emanuele/loki-das/bedretto/output_m_new'
+data_path = '/home/emanuele/data/emanuele/loki-das/bedretto/m05/hybrid'
+output_path = '/home/emanuele/data/emanuele/loki-das/bedretto/output_m05_hybrid'
 hdr_filename = 'header_long_bedretto.hdr'
 geometry_filename_fiber = 'DAS_geom.txt'
 geometry_filename_stat = 'hybrid_geom.dat'
 inputs = {}
-inputs['tshortp_min_sta'] = 0.01 #0.1
-inputs['tshortp_max_sta'] = 0.01 #0.2
-inputs['tshorts_min_sta'] = 0.01 #0.15
-inputs['tshorts_max_sta'] = 0.01 #0.25
-inputs['tshortp_min_fiber'] = 0.01 #0.1
-inputs['tshortp_max_fiber'] = 0.01 #0.3
-inputs['tshorts_min_fiber'] = 0.01 #0.15
-inputs['tshorts_max_fiber'] = 0.01 #0.35
-inputs['slrat'] = 4
+inputs['tshortp_min_sta'] = 0.005 #0.1
+inputs['tshortp_max_sta'] = 0.005 #0.2
+inputs['tshorts_min_sta'] = 0.005 #0.15
+inputs['tshorts_max_sta'] = 0.005 #0.25
+inputs['tshortp_min_fiber'] = 0.005 #0.1
+inputs['tshortp_max_fiber'] = 0.005#0.3
+inputs['tshorts_min_fiber'] = 0.005#0.15
+inputs['tshorts_max_fiber'] = 0.005 #0.35
+inputs['slrat'] = 2
 inputs['npr'] = 36
 inputs['ntrial'] = 1
 inputs['derivative'] = True
 inputs['normalize'] = True
 inputs['vfunc'] = 'erg'
-inputs['hfunc'] = 'erg'
+inputs['hfunc'] = 'pca'
 inputs['model'] = 'layer'
 inputs['epsilon'] = 0.001
 #inputs['freq']=[2,15]
@@ -36,7 +36,7 @@ precision = 'single'
 comp = ['E', 'N', 'Z']
 inputs['extension_sta'] = '*'
 inputs['extension_das'] = 'CANDAS2_2023-01-07_10-48-10.h5'
-inputs['delta_das'] = 4000
+inputs['delta_das'] = 1000
 
 # =========  Call
 
