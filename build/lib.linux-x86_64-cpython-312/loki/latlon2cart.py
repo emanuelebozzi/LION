@@ -51,7 +51,7 @@ class Coordinates:
         self.X0=X0
         self.Y0=Y0
         self.Z0=Z0
-        print(self.lon0, self.lat0, self.ele0, self.X0, self.Y0, self.Z0)
+        #print(self.lon0, self.lat0, self.ele0, self.X0, self.Y0, self.Z0)
         
         
     def geo2cart(self,lat,lon,ele=0,relative = True, geo2enu=False):
@@ -70,7 +70,7 @@ class Coordinates:
         #Z=((1-_eccentricity_squared)*N+ele)*num.sin(lat)
         Z = ele
 
-        print('X,Y,Z', X,Y,Z)
+        #print('X,Y,Z', X,Y,Z)
 
 
         if relative: 
@@ -119,39 +119,48 @@ class Coordinates:
 
         return X,Y,Z
 
-    def cart2geo(self,E,N,U):
-        '''Conversion from Cartesian E,N,U (input in meters) to Geographical LAT,LON,ELE(km) frame'''
-        X,Y,Z=self.__enu2geo(E,N,U)
-        e=(_semi_major_axis**2-_semi_minor_axis**2)/_semi_minor_axis**2
-        p=num.sqrt(X**2+Y**2)
-        F=54*(_semi_minor_axis**2)*Z**2
-        G=p**2+(1-_eccentricity_squared)*Z**2-_eccentricity_squared*(_semi_major_axis**2-_semi_minor_axis**2)
-        c=((_eccentricity_squared**2)*F*p**2)/G**3
-        s=num.cbrt(1+c+num.sqrt(c**2+2*c))
-        k=s+1+(1/s)
-        P=F/(3*k**2*G**2)
-        Q=num.sqrt(1+2*(_eccentricity_squared**2)*P)
-        r0_1=-((P*_eccentricity_squared*p)/(1+Q))
-        r0_2=0.5*_semi_major_axis**2*(1+(1/Q))
-        r0_3=(P*(1-_eccentricity_squared)*Z**2)/(Q*(1+Q))
-        r0_4=0.5*P*p**2
-        r0=r0_1+num.sqrt(r0_2-r0_3-r0_4)
-        U=num.sqrt((p-_eccentricity_squared*r0)**2+Z**2)
+    def cart2geo(self, E, N, U):
+        """Conversion from Cartesian E,N,U (meters) to Geographical LAT,LON,ELE (km)."""
+        X, Y, Z = self.__enu2geo(E, N, U)
+
+        e = (_semi_major_axis**2 - _semi_minor_axis**2) / _semi_minor_axis**2
+        p = num.sqrt(X**2 + Y**2)
+        F = 54 * (_semi_minor_axis**2) * Z**2
+        G = p**2 + (1 - _eccentricity_squared) * Z**2 - _eccentricity_squared * (_semi_major_axis**2 - _semi_minor_axis**2)
+        c = ((_eccentricity_squared**2) * F * p**2) / G**3
+        s = num.cbrt(1 + c + num.sqrt(c**2 + 2 * c))
+        k = s + 1 + (1 / s)
+        P = F / (3 * k**2 * G**2)
+        Q = num.sqrt(1 + 2 * (_eccentricity_squared**2) * P)
+        r0_1 = -((P * _eccentricity_squared * p) / (1 + Q))
+        r0_2 = 0.5 * _semi_major_axis**2 * (1 + (1 / Q))
+        r0_3 = (P * (1 - _eccentricity_squared) * Z**2) / (Q * (1 + Q))
+        r0_4 = 0.5 * P * p**2
+        r0 = r0_1 + num.sqrt(r0_2 - r0_3 - r0_4)
+
+        Up = num.sqrt((p - _eccentricity_squared * r0)**2 + Z**2)
         V = num.sqrt((p - _eccentricity_squared * r0)**2 + (1 - _eccentricity_squared) * Z**2)
         z0 = (Z * _semi_minor_axis**2) / (V * _semi_major_axis)
 
         lat = num.arctan((Z + e * z0) / p) * _rad2deg
         lon = num.arctan2(Y, X) * _rad2deg
 
+        # --- Bulletproof denominator handling ---
         denominator = V * _semi_major_axis
-        epsilon = 1e-10
-        if abs(denominator) < epsilon:
-            denominator = 1
-            ele = 1
-        else:
-            ele = (U * (1 - (_semi_minor_axis**2) / denominator)) / _km2m
+        epsilon = 1e-12
+
+        # Use np.where to prevent any invalid division
+        safe_ratio = num.where(
+            num.abs(denominator) > epsilon,
+            1 - (_semi_minor_axis**2) / denominator,
+            0.0  # fallback if denominator ≈ 0
+        )
+
+        ele = (Up * safe_ratio) / 1000.0
 
         return lat, lon, ele
+
+
 
 
 

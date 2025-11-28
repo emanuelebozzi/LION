@@ -175,6 +175,8 @@ class Stacktraces:
                 self.cfunc_erg(True)
             elif vfunc == 'cosh' and hfunc == 'cosh':
                 self.cfunc_cosh(False)
+            elif vfunc == 'tkeo' and hfunc == 'tkeo':
+                self.cfunc_tkeo(True)
             else:
                 print('wrong characteristic functions, energy used as default')
                 self.cfunc_erg(False)
@@ -200,6 +202,24 @@ class Stacktraces:
                     obs_dataV[i, :] /= mv
             self.obs_dataH = obs_dataH * self.scaleH
             self.obs_dataV = obs_dataV * self.scaleZ
+
+    def cfunc_tkeo(self):
+
+        #obs_dataV = self.ztr[1:-1]**2 - self.ztr[:-2]*self.ztr[2:] 
+        obs_dataV = self.ztr**2 
+        obs_dataH = self.xtr + self.ytr 
+        obs_dataH = obs_dataH[1:-1]**2 - obs_dataH[:-2]*obs_dataH[2:]
+        for i in range(self.nstation):
+            mh = num.max(abs(obs_dataH[i, :]))
+            mv = num.max(abs(obs_dataV[i, :]))
+            if mh > 0:
+                obs_dataH[i, :] /= mh
+            if mv > 0:
+                obs_dataV[i, :] /= mv
+
+        self.obs_dataH = obs_dataH * self.scaleH
+        self.obs_dataV = obs_dataV * self.scaleZ
+
 
     def cfunc_pca(self, epsilon):
         obs_dataH = num.zeros([self.nstation, self.ns])
