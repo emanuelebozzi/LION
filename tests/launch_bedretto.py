@@ -8,8 +8,8 @@ To call LOKI you need this file and make it executable (or call python)
 from loki.loki import Loki
 
 db_path = '/home/emanuele/data/emanuele/loki-das/Traveltimes/bedretto'
-data_path = '/home/emanuele/data/emanuele/loki-das/bedretto/m_new/hybrid'
-output_path = '/home/emanuele/data/emanuele/loki-das/bedretto/output_n_new_prova'
+data_path = '/home/emanuele/data/emanuele/loki-das/bedretto/Bedretto_DAS/M0B_snippets_mseed_denoised'
+output_path = '/home/emanuele/data/emanuele/loki-das/bedretto/Bedretto_DAS/M0B_snippets_mseed_location_denoised'
 hdr_filename = 'header_long_bedretto.hdr'
 geometry_filename_fiber = 'DAS_geom.txt'
 geometry_filename_stat = 'hybrid_geom.dat'
@@ -23,8 +23,8 @@ inputs['tshortp_max_fiber'] = 0.004 #0.3
 inputs['tshorts_min_fiber'] = 0.002 #0.15
 inputs['tshorts_max_fiber'] = 0.004 #0.35
 inputs['slrat'] = 2
-inputs['npr'] = 36
-inputs['ntrial'] = 5
+inputs['npr'] = 10
+inputs['ntrial'] = 1
 inputs['derivative'] = True
 inputs['normalize'] = True
 inputs['vfunc'] = 'erg' #'tkeo'
