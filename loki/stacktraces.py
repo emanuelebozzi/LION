@@ -8,8 +8,6 @@ class Stacktraces:
         # check input objects tobj=traveltime_object wobj=Raw_waveform_object
         self.check_sampling_rate(wobj)
         self.check_starting_time(wobj)
-        self.scaleH = 1.0
-        self.scaleZ = 1.0
 
         if ('vfunc' in inputs) or ('hfunc' in inputs):
             vfunc = inputs['vfunc']
@@ -18,6 +16,8 @@ class Stacktraces:
             derivative = inputs['derivative']
             self.loki_input(wobj, tobj, derivative)
             self.characteristic_function(vfunc, hfunc, epsilon)
+            self.enforce_hybrid_ps()
+            #self.adaptive_hz_balance()
         else:
             normalize = inputs.get('normthrd', False)
             self.loki_input(wobj, tobj, derivative=False, direct_input=True, normalize=normalize)
@@ -25,6 +25,45 @@ class Stacktraces:
             if 'ppower' in inputs:
                 self.obs_dataV = self.obs_dataV ** inputs['ppower']
                 self.obs_dataH = self.obs_dataH ** inputs['ppower']
+
+    def adaptive_hz_balance(self, Rmax=1.25, eps=1e-12):
+        """
+        Dynamically rebalance amplitudes if horizontal or vertical energy dominates.
+        Acts on characteristic functions (obs_dataH / obs_dataV), using per-sensor RMS.
+        """
+
+        if not hasattr(self, "obs_dataH") or not hasattr(self, "obs_dataV"):
+            return
+
+        # --- Compute per-station RMS ---
+        rmsH = num.sqrt(num.mean(self.obs_dataH**2, axis=1))
+        rmsV = num.sqrt(num.mean(self.obs_dataV**2, axis=1))
+
+        # Only include non-zero RMS stations
+        validH = rmsH > 0
+        validV = rmsV > 0
+
+        if not num.any(validH) or not num.any(validV):
+            print("[INFO] Adaptive H/Z balance skipped, only one type of component present")
+            return
+
+        mean_rmsH = num.mean(rmsH[validH])
+        mean_rmsV = num.mean(rmsV[validV])
+
+        R = mean_rmsH / (mean_rmsV + eps)
+
+        if R > Rmax:
+            scaleH = mean_rmsV / (mean_rmsH + eps)
+            self.obs_dataH *= scaleH
+            print(f"[INFO] Adaptive H/Z balance applied (H dominant, per-station RMS): R={R:.2f}, scaleH={scaleH:.3e}")
+        elif 1/R > Rmax:
+            scaleV = mean_rmsH / (mean_rmsV + eps)
+            self.obs_dataV *= scaleV
+            print(f"[INFO] Adaptive H/Z balance applied (V dominant, per-station RMS): 1/R={1/R:.2f}, scaleV={scaleV:.3e}")
+        else:
+            print(f"[INFO] Adaptive H/Z balance not needed: R={R:.2f}")
+
+
 
     def check_sampling_rate(self, wobj):
         deltas = [wobj.stream[comp][sta][1] for comp in wobj.stream for sta in wobj.stream[comp]]
@@ -47,7 +86,11 @@ class Stacktraces:
         self.evid = self.dtime_max.isoformat()
 
     def loki_input(self, wobj, tobj, derivative, direct_input=False, normalize=True):
+        """
+        Load data from waveform object, classify stations, and apply H/Z scaling once.
+        """
         if direct_input:
+            # Direct assignment for single-component mode
             self.obs_dataV = self.select_data('P', wobj, tobj.db_stations, derivative, normalize)
             self.obs_dataH = self.select_data('S', wobj, tobj.db_stations, derivative, normalize)
             return
@@ -56,15 +99,14 @@ class Stacktraces:
         print(f"[INFO] Available components: {available_comp}")
         self.comp = tuple(available_comp)
 
-        # fetch arrays
+        # --- Load raw traces ---
         self.xtr = self.select_data('E', wobj, tobj.db_stations, derivative, normalize)
         self.ytr = self.select_data('N', wobj, tobj.db_stations, derivative, normalize)
         self.ztr = self.select_data('Z', wobj, tobj.db_stations, derivative, normalize)
 
-        # classify stations
+        # --- Classify stations ---
         self.single_comp_idx = []
         self.three_comp_idx = []
-
         for i in range(self.nstation):
             comps_present = []
             if num.any(self.xtr[i, :] != 0): comps_present.append('E')
@@ -79,36 +121,34 @@ class Stacktraces:
         print(f"[INFO] Single-component stations: {self.single_comp_idx}")
         print(f"[INFO] Three-component stations: {self.three_comp_idx}")
 
-        # Only do copy if there is a mix of single and three-component stations
-        if self.single_comp_idx and self.three_comp_idx:
-            for i in self.single_comp_idx:
-                if num.any(self.xtr[i, :] != 0):
-                    self.ytr[i, :] = self.xtr[i, :].copy()
-                    self.ztr[i, :] = self.xtr[i, :].copy()
-                    print(f"[DEBUG] Station {i} single-component 'E' copied to 'N' and 'Z'")
-                elif num.any(self.ytr[i, :] != 0):
-                    self.xtr[i, :] = self.ytr[i, :].copy()
-                    self.ztr[i, :] = self.ytr[i, :].copy()
-                    print(f"[DEBUG] Station {i} single-component 'N' copied to 'E' and 'Z'")
-                elif num.any(self.ztr[i, :] != 0):
-                    self.xtr[i, :] = self.ztr[i, :].copy()
-                    self.ytr[i, :] = self.ztr[i, :].copy()
-                    print(f"[DEBUG] Station {i} single-component 'Z' copied to 'E' and 'N'")
+        # --- H/Z scaling (per-sensor RMS) ---
+        rmsH = num.sqrt(num.mean(self.xtr**2 + self.ytr**2, axis=1))
+        rmsZ = num.sqrt(num.mean(self.ztr**2, axis=1))
 
-        # Horizontal/vertical balancing
-        totalH = num.sum(self.xtr ** 2 + self.ytr ** 2)
-        totalZ = num.sum(self.ztr ** 2)
-        if totalH > 0 and totalZ > 0:
-            scaleH = num.sqrt(totalZ / totalH)
+        validH = rmsH > 0
+        validZ = rmsZ > 0
+
+        if num.any(validH) and num.any(validZ):
+            mean_rmsH = num.mean(rmsH[validH])
+            mean_rmsZ = num.mean(rmsZ[validZ])
+
+            scaleH = mean_rmsZ / (mean_rmsH + 1e-12)
             scaleZ = 1.0
-            self.xtr *= scaleH
-            self.ytr *= scaleH
-            self.ztr *= scaleZ
+
+            #self.xtr *= scaleH
+            #self.ytr *= scaleH
+            #self.ztr *= scaleZ
+
             self.scaleH = scaleH
             self.scaleZ = scaleZ
-            print(f"[INFO] H/Z scaling applied: scaleH={scaleH:.3e}, scaleZ={scaleZ:.3e}")
+
+            print(f"[INFO] H/Z scaling applied (per-sensor RMS): scaleH={scaleH:.3e}, scaleZ={scaleZ:.3e}")
         else:
             print("[INFO] Skipping H/Z scaling, only one type of component present")
+            self.scaleH = 1.0
+            self.scaleZ = 1.0
+
+                
 
     def select_data(self, comp, wobj, db_stations, derivative, normalize):
         self.stations = tuple(wobj.data_stations & set(db_stations))
@@ -221,24 +261,72 @@ class Stacktraces:
         self.obs_dataV = obs_dataV * self.scaleZ
 
 
-    def cfunc_pca(self, epsilon):
+    def enforce_hybrid_ps(self):
+        """
+        Enforce P/S usage for hybrid and 1C networks:
+        - 3C stations keep true P (V) and S (H)
+        - 1C stations use the SAME CF for both P and S
+        """
+
+        # If characteristic functions are missing, do nothing
+        if not hasattr(self, "obs_dataV") and not hasattr(self, "obs_dataH"):
+            return
+
+        # Ensure both arrays exist
+        if not hasattr(self, "obs_dataV"):
+            self.obs_dataV = num.zeros_like(self.obs_dataH)
+        if not hasattr(self, "obs_dataH"):
+            self.obs_dataH = num.zeros_like(self.obs_dataV)
+
+        # Loop over single-component stations
+        for i in self.single_comp_idx:
+            hasV = num.any(self.obs_dataV[i, :] != 0)
+            hasH = num.any(self.obs_dataH[i, :] != 0)
+
+            # If only one exists, copy it to the other
+            if hasV and not hasH:
+                self.obs_dataH[i, :] = self.obs_dataV[i, :].copy()
+            elif hasH and not hasV:
+                self.obs_dataV[i, :] = self.obs_dataH[i, :].copy()
+            # ---- station-count normalization ----
+        nz = 0
+        nh = 0
+
+        for i in range(self.nstation):
+            if num.any(self.obs_dataV[i, :] != 0):
+                nz += 1
+            if num.any(self.obs_dataH[i, :] != 0):
+                nh += 1
+
+        if nz > 0 and nh > 0:
+            self.obs_dataV *= (1.0 / nz)
+            self.obs_dataH *= (1.0 / nh)
+
+
+    def cfunc_pca(self, epsilon=0.001):
         obs_dataH = num.zeros([self.nstation, self.ns])
-        obs_dataH1 = self.analytic_signal(self.xtr)
-        obs_dataH2 = self.analytic_signal(self.ytr)
-        obs_dataH1C = num.conjugate(obs_dataH1)
-        obs_dataH2C = num.conjugate(obs_dataH2)
-        xx = obs_dataH1 * obs_dataH1C
-        xy = obs_dataH1 * obs_dataH2C
-        yx = obs_dataH2 * obs_dataH1C
-        yy = obs_dataH2 * obs_dataH2C
+
+        # Analytic signals
+        x_as = self.analytic_signal(self.xtr)
+        y_as = self.analytic_signal(self.ytr)
+        x_asC = num.conjugate(x_as)
+        y_asC = num.conjugate(y_as)
+
         for i in range(self.nstation):
             for j in range(self.ns):
-                cov = num.array([[xx[i, j], xy[i, j]], [yx[i, j], yy[i, j]]])
-                U, s, V = num.linalg.svd(cov, full_matrices=True)
-                obs_dataH[i, j] = s[0] ** 2
-            if abs(num.max(obs_dataH[i, :])) > 0:
-                obs_dataH[i, :] = (obs_dataH[i, :] / num.max(obs_dataH[i, :])) + epsilon
+                cov = num.array([[x_as[i,j]*x_asC[i,j], x_as[i,j]*y_asC[i,j]],
+                                [y_as[i,j]*x_asC[i,j], y_as[i,j]*y_asC[i,j]]])
+                _, s, _ = num.linalg.svd(cov)
+                obs_dataH[i,j] = s[0]**2
+
+            # Per-station normalization for numerical stability
+            max_val = num.max(obs_dataH[i, :])
+            if max_val > 0:
+                obs_dataH[i, :] = (obs_dataH[i, :] / max_val) + epsilon
+
+        # Apply H/Z scaling once at the end
         self.obs_dataH = obs_dataH * self.scaleH
+
 
     def cfunc_cosh(self, coshz):
         if coshz:
@@ -258,41 +346,49 @@ class Stacktraces:
             self.obs_dataH = obs_dataH * self.scaleH
             self.obs_dataV = obs_dataV * self.scaleZ
 
-    def cfunc_pcafull(self, epsilon):
+    def cfunc_pcafull(self, epsilon=0.001):
         obs_dataH = num.zeros([self.nstation, self.ns])
         obs_dataV = num.zeros([self.nstation, self.ns])
-        obs_dataH1 = self.analytic_signal(self.xtr)
-        obs_dataH2 = self.analytic_signal(self.ytr)
-        obs_dataH3 = self.analytic_signal(self.ztr)
-        obs_dataH1C = num.conjugate(obs_dataH1)
-        obs_dataH2C = num.conjugate(obs_dataH2)
-        obs_dataH3C = num.conjugate(obs_dataH3)
-        xx = obs_dataH1 * obs_dataH1C
-        xy = obs_dataH1 * obs_dataH2C
-        xz = obs_dataH1 * obs_dataH3C
-        yx = obs_dataH2 * obs_dataH1C
-        yy = obs_dataH2 * obs_dataH2C
-        yz = obs_dataH2 * obs_dataH3C
-        zx = obs_dataH3 * obs_dataH1C
-        zy = obs_dataH3 * obs_dataH2C
-        zz = obs_dataH3 * obs_dataH3C
+
+        # Analytic signals
+        x_as = self.analytic_signal(self.xtr)
+        y_as = self.analytic_signal(self.ytr)
+        z_as = self.analytic_signal(self.ztr)
+        x_asC = num.conjugate(x_as)
+        y_asC = num.conjugate(y_as)
+        z_asC = num.conjugate(z_as)
+
         for i in range(self.nstation):
             for j in range(self.ns):
-                cov3d = num.array([[xx[i, j], xy[i, j], xz[i, j]],
-                                   [yx[i, j], yy[i, j], yz[i, j]],
-                                   [zx[i, j], zy[i, j], zz[i, j]]])
-                cov2d = num.array([[xx[i, j], xy[i, j]],
-                                   [yx[i, j], yy[i, j]]])
-                U2d, s2d, V2d = num.linalg.svd(cov2d, full_matrices=True)
-                U3d, s3d, V3d = num.linalg.svd(cov3d, full_matrices=True)
-                obs_dataV[i, j] = (s3d[0] ** 2) * num.abs(V3d[0][2])
-                obs_dataH[i, j] = (s2d[0] ** 2) * (1 - num.abs(V3d[0][2]))
-            if abs(num.max(obs_dataH[i, :])) > 0:
-                obs_dataH[i, :] = (obs_dataH[i, :] / num.max(obs_dataH[i, :])) + epsilon
-            if abs(num.max(obs_dataV[i, :])) > 0:
-                obs_dataV[i, :] /= num.max(obs_dataV[i, :])
+                # 3D covariance
+                cov3d = num.array([
+                    [x_as[i,j]*x_asC[i,j], x_as[i,j]*y_asC[i,j], x_as[i,j]*z_asC[i,j]],
+                    [y_as[i,j]*x_asC[i,j], y_as[i,j]*y_asC[i,j], y_as[i,j]*z_asC[i,j]],
+                    [z_as[i,j]*x_asC[i,j], z_as[i,j]*y_asC[i,j], z_as[i,j]*z_asC[i,j]],
+                ])
+                # 2D horizontal covariance
+                cov2d = cov3d[:2, :2]
+
+                # SVD
+                _, s2d, _ = num.linalg.svd(cov2d)
+                _, s3d, V3d = num.linalg.svd(cov3d)
+
+                # Horizontal / Vertical decomposition
+                obs_dataV[i,j] = (s3d[0] ** 2) * num.abs(V3d[0,2])
+                obs_dataH[i,j] = (s2d[0] ** 2) * (1 - num.abs(V3d[0,2]))
+
+            # Per-station normalization for stability
+            maxH = num.max(obs_dataH[i, :])
+            maxV = num.max(obs_dataV[i, :])
+            if maxH > 0:
+                obs_dataH[i, :] = (obs_dataH[i, :] / maxH) + epsilon
+            if maxV > 0:
+                obs_dataV[i, :] /= maxV
+
+        # Apply H/Z scaling once at the end
         self.obs_dataH = obs_dataH * self.scaleH
         self.obs_dataV = obs_dataV * self.scaleZ
+
 
     # ---------- loc_stalta ----------
     def loc_stalta(self, nshort_p, nshort_s, slrat, norm=1):
