@@ -242,6 +242,7 @@ PyMODINIT_FUNC PyInit_location_t0(void){
 #include <omp.h>
 #include <stdio.h>
 
+
 int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny, long int nz,
              long int nsamples, long int nxyz,
              int itp[nrs][nzs], int its[nrs][nzs],
@@ -251,59 +252,41 @@ int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny
              long int *out_indices, double *out_values, long int *out_nnz,
              long int iloc[3], long int *itime, long int nproc)
 {
-    long int i, j, k, ip, is;
-    int ix, iy, iz;
-    int rdist_ind, zdist_ind;
-    double xdist, ydist, rdist, zdist;
-    double stk0p, stk0s, stkmax;
-    double corrmax = -1.0;
-
-    double dx = (nx > 1) ? (x[1] - x[0]) : 1.0;
-    double dz = (nz > 1) ? (z[1] - z[0]) : 1.0;
-
     omp_set_num_threads((int)nproc);
 
-    /* Sparse output buffers (local, then copy to out_*) */
-    long int *idx_buf = (long int *) malloc((size_t)nxyz * sizeof(long int));
-    double  *val_buf  = (double  *) malloc((size_t)nxyz * sizeof(double));
-    if (!idx_buf || !val_buf) {
-        fprintf(stderr, "stacking: memory allocation failed for sparse buffers\n");
-        free(idx_buf); free(val_buf);
-        return -1;
-    }
     long int nnz_local = 0;
 
-    /* Step A: seeds */
-    int nseed = (int)floor(sqrt((double)nxyz)) * 2;
+    /* Step 0: allocate buffers */
+    long int *idx_buf = (long int *) malloc((size_t)nxyz * sizeof(long int));
+    double  *val_buf = (double  *) malloc((size_t)nxyz * sizeof(double));
+    if (!idx_buf || !val_buf) { free(idx_buf); free(val_buf); return -1; }
+
+    /* Step A: generate seeds on coarse grid */
+    int nseed = (int)floor(sqrt((double)nxyz))*2;
     if(nseed < 1) nseed = 1;
 
-    long int *seed_indices = (long int*) malloc((size_t)nseed * sizeof(long int));
-    double *seed_coherence = (double*) malloc((size_t)nseed * sizeof(double));
-    int *seed_ix = (int*) malloc((size_t)nseed * sizeof(int));
-    int *seed_iy = (int*) malloc((size_t)nseed * sizeof(int));
-    int *seed_iz = (int*) malloc((size_t)nseed * sizeof(int));
-
-    if(!seed_indices || !seed_coherence || !seed_ix || !seed_iy || !seed_iz){
-        fprintf(stderr, "stacking: memory allocation failed for seeds\n");
-        free(seed_indices); free(seed_coherence); free(seed_ix); free(seed_iy); free(seed_iz);
-        free(idx_buf); free(val_buf);
-        return -1;
+    int *seed_ix = (int*) malloc((size_t)nseed*sizeof(int));
+    int *seed_iy = (int*) malloc((size_t)nseed*sizeof(int));
+    int *seed_iz = (int*) malloc((size_t)nseed*sizeof(int));
+    double *seed_coherence = (double*) malloc((size_t)nseed*sizeof(double));
+    if(!seed_ix || !seed_iy || !seed_iz || !seed_coherence){
+        free(seed_ix); free(seed_iy); free(seed_iz); free(seed_coherence);
+        free(idx_buf); free(val_buf); return -1;
     }
 
     int ndiv = (int)round(pow((double)nseed, 1.0/3.0));
     if(ndiv < 1) ndiv = 1;
+
     long int count = 0;
-    for(int ixd = 0; ixd < ndiv && count < nseed; ixd++){
-        ix = (int)((long)ixd * (nx - 1) / (ndiv - 1 > 0 ? (ndiv - 1) : 1));
-        for(int iyd = 0; iyd < ndiv && count < nseed; iyd++){
-            iy = (int)((long)iyd * (ny - 1) / (ndiv - 1 > 0 ? (ndiv - 1) : 1));
-            for(int izd = 0; izd < ndiv && count < nseed; izd++){
-                iz = (int)((long)izd * (nz - 1) / (ndiv - 1 > 0 ? (ndiv - 1) : 1));
+    for(int ixd=0; ixd<ndiv && count<nseed; ixd++){
+        int ix = (int)((long)ixd*(nx-1)/(ndiv-1>0?(ndiv-1):1));
+        for(int iyd=0; iyd<ndiv && count<nseed; iyd++){
+            int iy = (int)((long)iyd*(ny-1)/(ndiv-1>0?(ndiv-1):1));
+            for(int izd=0; izd<ndiv && count<nseed; izd++){
+                int iz = (int)((long)izd*(nz-1)/(ndiv-1>0?(ndiv-1):1));
                 seed_ix[count] = ix;
                 seed_iy[count] = iy;
                 seed_iz[count] = iz;
-                seed_indices[count] = (long int)ix * (long int)ny * (long int)nz +
-                                      (long int)iy * (long int)nz + (long int)iz;
                 seed_coherence[count] = 0.0;
                 count++;
             }
@@ -311,297 +294,166 @@ int stacking(long int nrs, long int nzs, long int nsta, long int nx, long int ny
     }
     nseed = (int)count;
 
-    /* Step B: coarse stacking */
-    #pragma omp parallel for private(ix,iy,iz,j,k,ip,is,xdist,ydist,rdist,zdist,rdist_ind,zdist_ind,stk0p,stk0s,stkmax)
-    for(int si = 0; si < nseed; si++){
-        ix = seed_ix[si];
-        iy = seed_iy[si];
-        iz = seed_iz[si];
+    /* Step B: coarse stacking for seed values */
+    #pragma omp parallel for
+    for(int s=0; s<nseed; s++){
+        int ix = seed_ix[s];
+        int iy = seed_iy[s];
+        int iz = seed_iz[s];
 
-        long int *tp = (long int*) malloc((size_t)nsta * sizeof(long int));
-        long int *ts = (long int*) malloc((size_t)nsta * sizeof(long int));
-        if(!tp || !ts){
-            if(tp) free(tp);
-            if(ts) free(ts);
-            seed_coherence[si] = -1.0;
-            continue;
+        long int *tp = (long int*) malloc(nsta*sizeof(long int));
+        long int *ts = (long int*) malloc(nsta*sizeof(long int));
+        if(!tp || !ts){ if(tp) free(tp); if(ts) free(ts); seed_coherence[s]=-1.0; continue; }
+
+        for(int j=0; j<nsta; j++){
+            double xdist=(x[ix]-stax[j])*(x[ix]-stax[j]);
+            double ydist=(y[iy]-stay[j])*(y[iy]-stay[j]);
+            double zdist=z[iz]-staz[j];
+            double rdist=sqrt(xdist+ydist);
+
+            double dx = (nx>1)?(x[1]-x[0]):1.0;
+            double dz = (nz>1)?(z[1]-z[0]):1.0;
+
+            /* bilinear interpolation */
+            double r_idx = rdist/dx;
+            double z_idx = zdist/dz;
+            int r0 = (int)floor(r_idx); if(r0<0) r0=0; if(r0>=nrs-1) r0=nrs-2;
+            int z0 = (int)floor(z_idx); if(z0<0) z0=0; if(z0>=nzs-1) z0=nzs-2;
+            double wr = r_idx - r0;
+            double wz = z_idx - z0;
+
+            double tpi = (1.0-wr)*(1.0-wz)*itp[r0][z0] + wr*(1.0-wz)*itp[r0+1][z0]
+                       + (1.0-wr)*wz*itp[r0][z0+1] + wr*wz*itp[r0+1][z0+1];
+            double tsi = (1.0-wr)*(1.0-wz)*its[r0][z0] + wr*(1.0-wz)*its[r0+1][z0]
+                       + (1.0-wr)*wz*its[r0][z0+1] + wr*wz*its[r0+1][z0+1];
+
+            tp[j]=(long int)(tpi+0.5);
+            ts[j]=(long int)(tsi+0.5);
         }
 
-        for(j = 0; j < nsta; j++){
-            /* compute horizontal and vertical separations */
-            xdist = (x[ix] - stax[j]) * (x[ix] - stax[j]);
-            ydist = (y[iy] - stay[j]) * (y[iy] - stay[j]);
-            zdist = z[iz] - staz[j];
-            rdist = sqrt(xdist + ydist);
-
-            /* fractional indices in r and z */
-            double r_idx = rdist / dx;
-            int rdist_ind_loc = (int)floor(r_idx);
-            double wr = r_idx - rdist_ind_loc;
-
-            double z_idx = zdist / dz;
-            int zdist_ind_loc = (int)floor(z_idx);
-            double wz = z_idx - zdist_ind_loc;
-
-            /* clamp indices to valid interpolation range and fix weights at edges */
-            if(rdist_ind_loc < 0){ rdist_ind_loc = 0; wr = 0.0; }
-            if(rdist_ind_loc >= nrs - 1){ rdist_ind_loc = (int)nrs - 2; wr = 0.0; }
-            if(zdist_ind_loc < 0){ zdist_ind_loc = 0; wz = 0.0; }
-            if(zdist_ind_loc >= nzs - 1){ zdist_ind_loc = (int)nzs - 2; wz = 0.0; }
-
-            /* bilinear interpolation of traveltime tables (itp and its are 2D [r][z]) */
-            double t00p = (double)itp[rdist_ind_loc][zdist_ind_loc];
-            double t10p = (double)itp[rdist_ind_loc + 1][zdist_ind_loc];
-            double t01p = (double)itp[rdist_ind_loc][zdist_ind_loc + 1];
-            double t11p = (double)itp[rdist_ind_loc + 1][zdist_ind_loc + 1];
-
-            double t00s = (double)its[rdist_ind_loc][zdist_ind_loc];
-            double t10s = (double)its[rdist_ind_loc + 1][zdist_ind_loc];
-            double t01s = (double)its[rdist_ind_loc][zdist_ind_loc + 1];
-            double t11s = (double)its[rdist_ind_loc + 1][zdist_ind_loc + 1];
-
-            /* bilinear weights */
-            double one_wr = 1.0 - wr;
-            double one_wz = 1.0 - wz;
-
-            double tpi = one_wr * one_wz * t00p + wr * one_wz * t10p +
-                         one_wr * wz * t01p + wr * wz * t11p;
-            double tsi = one_wr * one_wz * t00s + wr * one_wz * t10s +
-                         one_wr * wz * t01s + wr * wz * t11s;
-
-            tp[j] = (long int)(tpi + 0.5);
-            ts[j] = (long int)(tsi + 0.5);
-        }
-
-        stkmax = -1.0;
-        for(k = 0; k < nsamples; k++){
-            stk0p = 0.0; stk0s = 0.0;
-            for(j = 0; j < nsta; j++){
-                ip = tp[j] + k;
-                is = ts[j] + k;
-                if(ip < 0) continue;
-                if(is < 0) continue;
-                if(ip >= nsamples || is >= nsamples) continue;
-                stk0p += stackf_p[j][ip];
-                stk0s += stackf_s[j][is];
+        double stkmax=-1.0;
+        for(int k=0; k<nsamples; k++){
+            double stk0p=0.0, stk0s=0.0;
+            for(int j=0; j<nsta; j++){
+                int ip=tp[j]+k; int is=ts[j]+k;
+                if(ip<0 || ip>=nsamples) continue;
+                if(is<0 || is>=nsamples) continue;
+                stk0p+=stackf_p[j][ip];
+                stk0s+=stackf_s[j][is];
             }
-            if(stk0p + stk0s > stkmax) stkmax = stk0p + stk0s;
+            if(stk0p+stk0s>stkmax) stkmax=stk0p+stk0s;
         }
-
-        seed_coherence[si] = stkmax / ((double)nsta);
-
+        seed_coherence[s]=stkmax/(double)nsta;
         free(tp); free(ts);
     }
 
-    /* Step C: localized assignment only near top seeds */
-    for (int s = 0; s < nseed; s++) {
-        int ix0 = seed_ix[s];
-        int iy0 = seed_iy[s];
-        int iz0 = seed_iz[s];
+    /* Step C: pick top seeds */
+    int N_top = min(3,nseed);
+    int *top_seeds = (int*) malloc(N_top*sizeof(int));
+    double *top_vals = (double*) malloc(N_top*sizeof(double));
+    for(int t=0; t<N_top; t++){ top_seeds[t]=-1; top_vals[t]=-1.0; }
 
-        int neigh_local = 2; /* small neighborhood */
-        int ix_min = max(0, ix0 - neigh_local);
-        int ix_max = min((int)nx - 1, ix0 + neigh_local);
-        int iy_min = max(0, iy0 - neigh_local);
-        int iy_max = min((int)ny - 1, iy0 + neigh_local);
-        int iz_min = max(0, iz0 - neigh_local);
-        int iz_max = min((int)nz - 1, iz0 + neigh_local);
-
-        for (int ix_loc = ix_min; ix_loc <= ix_max; ix_loc++) {
-            for (int iy_loc = iy_min; iy_loc <= iy_max; iy_loc++) {
-                for (int iz_loc = iz_min; iz_loc <= iz_max; iz_loc++) {
-                    long int idx = (long int)ix_loc * (long int)ny * (long int)nz +
-                                   (long int)iy_loc * (long int)nz + (long int)iz_loc;
-                    double val = seed_coherence[s];
-                    if (val != 0.0 && nnz_local < nxyz) {
-                        idx_buf[nnz_local] = idx;
-                        val_buf[nnz_local] = val;
-                        nnz_local++;
-                    }
-                }
-            }
-        }
-    }
-
-    /* Step D: top N seeds */
-    int N_top = 25;
-    if(nseed < N_top) N_top = nseed;
-
-    int *top_seeds = (int*) malloc((size_t)N_top * sizeof(int));
-    double *top_values = (double*) malloc((size_t)N_top * sizeof(double));
-    if(!top_seeds || !top_values){
-        free(top_seeds); free(top_values);
-        free(seed_indices); free(seed_coherence); free(seed_ix); free(seed_iy); free(seed_iz);
-        free(idx_buf); free(val_buf);
-        fprintf(stderr, "stacking: memory allocation failed for top_seeds\n");
-        return -1;
-    }
-    for(int t = 0; t < N_top; t++){ top_seeds[t] = -1; top_values[t] = -1.0; }
-
-    for(int s = 0; s < nseed; s++){
+    for(int s=0; s<nseed; s++){
         double val = seed_coherence[s];
-        for(int t = 0; t < N_top; t++){
-            if(val > top_values[t]){
-                for(int u = N_top - 1; u > t; u--){
-                    top_values[u] = top_values[u-1];
-                    top_seeds[u] = top_seeds[u-1];
-                }
-                top_values[t] = val;
-                top_seeds[t] = s;
-                break;
+        for(int t=0; t<N_top; t++){
+            if(val>top_vals[t]){
+                for(int u=N_top-1; u>t; u--){ top_vals[u]=top_vals[u-1]; top_seeds[u]=top_seeds[u-1]; }
+                top_vals[t]=val; top_seeds[t]=s; break;
             }
         }
     }
 
-    int neigh = 30; /* radius in grid cells around seed for refinement */
+    /* Step D: final refinement with full bilinear interpolation */
+    int neigh = 20;
+    double corrmax=-1.0;
 
-    /* Progress counter */
-    long int total_cells = 0;
-    for(int t = 0; t < N_top; t++){
+    for(int t=0; t<N_top; t++){
         int sid = top_seeds[t];
-        if(sid < 0) continue;
-        int ix0 = seed_ix[sid];
-        int iy0 = seed_iy[sid];
-        int iz0 = seed_iz[sid];
+        if(sid<0) continue;
 
-        long int ix_min = max(0, ix0 - neigh);
-        long int ix_max = min((int)nx - 1, ix0 + neigh);
-        long int iy_min = max(0, iy0 - neigh);
-        long int iy_max = min((int)ny - 1, iy0 + neigh);
-        long int iz_min = max(0, iz0 - neigh);
-        long int iz_max = min((int)nz - 1, iz0 + neigh);
+        int ix0=seed_ix[sid], iy0=seed_iy[sid], iz0=seed_iz[sid];
 
-        total_cells += (ix_max - ix_min + 1) *
-                       (iy_max - iy_min + 1) *
-                       (iz_max - iz_min + 1);
-    }
+        int ix_min=max(0,ix0-neigh), ix_max=min((int)nx-1,ix0+neigh);
+        int iy_min=max(0,iy0-neigh), iy_max=min((int)ny-1,iy0+neigh);
+        int iz_min=max(0,iz0-neigh), iz_max=min((int)nz-1,iz0+neigh);
 
-    long int processed_cells = 0;
+        long int nref = (ix_max-ix_min+1)*(iy_max-iy_min+1)*(iz_max-iz_min+1);
 
-    for(int t = 0; t < N_top; t++){
-        int sid = top_seeds[t];
-        if(sid < 0) continue;
+        #pragma omp parallel for
+        for(long int ri=0; ri<nref; ri++){
+            int ix = ix_min + ri/( (iy_max-iy_min+1)*(iz_max-iz_min+1) );
+            int iy = iy_min + (ri/(iz_max-iz_min+1)) % (iy_max-iy_min+1);
+            int iz = iz_min + ri % (iz_max-iz_min+1);
 
-        int ix0 = seed_ix[sid];
-        int iy0 = seed_iy[sid];
-        int iz0 = seed_iz[sid];
+            long int idx = (long int)ix*ny*nz + (long int)iy*nz + (long int)iz;
 
-        long int ix_min = max(0, ix0 - neigh);
-        long int ix_max = min((int)nx - 1, ix0 + neigh);
-        long int iy_min = max(0, iy0 - neigh);
-        long int iy_max = min((int)ny - 1, iy0 + neigh);
-        long int iz_min = max(0, iz0 - neigh);
-        long int iz_max = min((int)nz - 1, iz0 + neigh);
+            long int *tp = (long int*) malloc(nsta*sizeof(long int));
+            long int *ts = (long int*) malloc(nsta*sizeof(long int));
+            if(!tp || !ts){ if(tp) free(tp); if(ts) free(ts); continue; }
 
-        long int nrefine_x = ix_max - ix_min + 1;
-        long int nrefine_y = iy_max - iy_min + 1;
-        long int nrefine_z = iz_max - iz_min + 1;
-        long int nrefine = nrefine_x * nrefine_y * nrefine_z;
+            for(int j=0; j<nsta; j++){
+                double xdist=(x[ix]-stax[j])*(x[ix]-stax[j]);
+                double ydist=(y[iy]-stay[j])*(y[iy]-stay[j]);
+                double zdist=z[iz]-staz[j];
+                double rdist=sqrt(xdist+ydist);
 
-        #pragma omp parallel for private(i, ix, iy, iz, j, k, ip, is, xdist, ydist, zdist, rdist, rdist_ind, zdist_ind, stk0p, stk0s, stkmax)
-        for(long int ri = 0; ri < nrefine; ri++){
-            ix = (int)(ix_min + ri / (nrefine_y * nrefine_z));
-            iy = (int)(iy_min + (ri / nrefine_z) % nrefine_y);
-            iz = (int)(iz_min + ri % nrefine_z);
+                double dx = (nx>1)?(x[1]-x[0]):1.0;
+                double dz = (nz>1)?(z[1]-z[0]):1.0;
 
-            if(ix < 0 || iy < 0 || iz < 0 || ix >= nx || iy >= ny || iz >= nz) continue;
+                double r_idx = rdist/dx;
+                double z_idx = zdist/dz;
+                int r0 = (int)floor(r_idx); if(r0<0) r0=0; if(r0>=nrs-1) r0=nrs-2;
+                int z0 = (int)floor(z_idx); if(z0<0) z0=0; if(z0>=nzs-1) z0=nzs-2;
+                double wr = r_idx-r0; double wz = z_idx-z0;
 
-            long int idx = (long int)ix * (long int)ny * (long int)nz +
-                           (long int)iy * (long int)nz + (long int)iz;
+                double tpi = (1.0-wr)*(1.0-wz)*itp[r0][z0] + wr*(1.0-wz)*itp[r0+1][z0]
+                           + (1.0-wr)*wz*itp[r0][z0+1] + wr*wz*itp[r0+1][z0+1];
+                double tsi = (1.0-wr)*(1.0-wz)*its[r0][z0] + wr*(1.0-wz)*its[r0+1][z0]
+                           + (1.0-wr)*wz*its[r0][z0+1] + wr*wz*its[r0+1][z0+1];
 
-            long int *tp = (long int*) malloc((size_t)nsta * sizeof(long int));
-            long int *ts = (long int*) malloc((size_t)nsta * sizeof(long int));
-            if(!tp || !ts){
-                if(tp) free(tp);
-                if(ts) free(ts);
-                continue;
+                tp[j]=(long int)(tpi+0.5);
+                ts[j]=(long int)(tsi+0.5);
             }
 
-            for(j = 0; j < nsta; j++){
-                xdist = (x[ix] - stax[j]) * (x[ix] - stax[j]);
-                ydist = (y[iy] - stay[j]) * (y[iy] - stay[j]);
-                zdist = z[iz] - staz[j];
-                rdist = sqrt(xdist + ydist);
-
-                double r_idx = rdist / dx;
-                rdist_ind = (int)floor(r_idx);
-                zdist_ind = (int)floor(zdist / dz);
-
-                if(rdist_ind < 0) rdist_ind = 0;
-                if(rdist_ind >= nrs - 1) rdist_ind = (int)nrs - 2;
-                if(zdist_ind < 0) zdist_ind = 0;
-                if(zdist_ind >= nzs - 1) zdist_ind = (int)nzs - 2;
-
-                double w = r_idx - (double)rdist_ind;
-                double tpi = (1.0 - w) * (double)itp[rdist_ind][zdist_ind] +
-                             w           * (double)itp[rdist_ind + 1][zdist_ind];
-                double tsi = (1.0 - w) * (double)its[rdist_ind][zdist_ind] +
-                             w           * (double)its[rdist_ind + 1][zdist_ind];
-
-                tp[j] = (long int)(tpi + 0.5);
-                ts[j] = (long int)(tsi + 0.5);
-            }
-
-            stkmax = -1.0;
-            long int kmax = 0;
-            for(k = 0; k < nsamples; k++){
-                stk0p = 0.0; stk0s = 0.0;
-                for(j = 0; j < nsta; j++){
-                    ip = tp[j] + k;
-                    is = ts[j] + k;
-                    if(ip < 0 || is < 0) continue;
-                    if(ip >= nsamples || is >= nsamples) continue;
-                    stk0p += stackf_p[j][ip];
-                    stk0s += stackf_s[j][is];
+            double stkmax=-1.0;
+            long int kmax=0;
+            for(int k=0; k<nsamples; k++){
+                double stk0p=0.0, stk0s=0.0;
+                for(int j=0; j<nsta; j++){
+                    int ip=tp[j]+k; int is=ts[j]+k;
+                    if(ip<0||ip>=nsamples) continue;
+                    if(is<0||is>=nsamples) continue;
+                    stk0p+=stackf_p[j][ip];
+                    stk0s+=stackf_s[j][is];
                 }
-                if(stk0p + stk0s > stkmax){
-                    stkmax = stk0p + stk0s;
-                    kmax = k;
-                }
+                if(stk0p+stk0s>stkmax){ stkmax=stk0p+stk0s; kmax=k; }
             }
 
-            double val = stkmax / ((double)nsta);
-
-            if (val != 0.0 && nnz_local < nxyz) {
-                /* store sparse element */
+            double val = stkmax/(double)nsta;
+            if(val!=0.0){
                 #pragma omp critical
                 {
-                    idx_buf[nnz_local] = idx;
-                    val_buf[nnz_local] = val;
+                    idx_buf[nnz_local]=idx;
+                    val_buf[nnz_local]=val;
                     nnz_local++;
+                    if(val>corrmax){ corrmax=val; iloc[0]=idx; iloc[1]=ix; iloc[2]=iy; *itime=kmax; }
                 }
-            }
-
-            #pragma omp critical
-            {
-                if (val > corrmax){
-                    corrmax = val;
-                    iloc[0] = idx;
-                    iloc[1] = ix;
-                    iloc[2] = iy;
-                    *itime = kmax;
-                }
-                processed_cells++;
-                if ((100 * processed_cells / total_cells) % 5 == 0)
-                    printf("\rLocation progress: %ld%%", 100 * processed_cells / total_cells), fflush(stdout);
             }
 
             free(tp); free(ts);
         }
     }
 
-    printf("\n");
-
-    /* Export sparse result */
     *out_nnz = nnz_local;
-    for (long int ii = 0; ii < nnz_local; ii++) {
-        out_indices[ii] = idx_buf[ii];
-        out_values[ii]  = val_buf[ii];
+    for(long int ii=0; ii<nnz_local; ii++){
+        out_indices[ii]=idx_buf[ii];
+        out_values[ii]=val_buf[ii];
     }
 
-    free(top_seeds); free(top_values);
-    free(seed_indices); free(seed_coherence); free(seed_ix); free(seed_iy); free(seed_iz);
     free(idx_buf); free(val_buf);
+    free(seed_ix); free(seed_iy); free(seed_iz); free(seed_coherence);
+    free(top_seeds); free(top_vals);
 
     return 0;
 }
+

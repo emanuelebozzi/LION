@@ -103,12 +103,6 @@ class Loki:
         ts = tobj.load_traveltimes('S', model, precision)
         tobj.load_station_info()
 
-        #tobj.x = tobj.x[0:len(tobj.x)-1]. #if nz different from nx,ny
-        #tobj.y = tobj.y[0:len(tobj.y)-1]
-
-
-
-
 
         for event_path in self.data_tree:
             self.subdata_path = event_path    #this is stations, diber
@@ -174,9 +168,7 @@ class Loki:
 
             sobj = stacktraces.Stacktraces(tobj, wobj, **inputs)
             event = event_path.split('/')[-1]
-            #print('event', event)
-            #output_dir = os.path.join(self.output_path, event)
-            #os.makedirs(output_dir, exist_ok=True)
+   
 
             print(tobj.nxz)
 
@@ -214,7 +206,6 @@ class Loki:
             for i in range(ntrial):
                 if STALTA:
 
-                    print('hey!')
                     if label == 'fiber':
                         nshort_p_sta = int(tshortp_fiber[i] // sobj.deltat)
                         nshort_s_sta = int(tshorts_fiber[i] // sobj.deltat)
@@ -305,17 +296,7 @@ class Loki:
                 obs_dataP_sta = num.ascontiguousarray(obs_dataP_sta, dtype=num.float64)
                 obs_dataS_sta = num.ascontiguousarray(obs_dataS_sta, dtype=num.float64)
 
-                print('aaaa',obs_dataP_sta.shape)
 
-
-
-
-                print('bbbb', len(tp_mod_sta))
-
-                print
-
-
-                print(tobj.nx, tobj.nz)
                 print('Starting stacking')
 
 

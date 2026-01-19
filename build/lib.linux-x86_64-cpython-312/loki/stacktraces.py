@@ -205,8 +205,8 @@ class Stacktraces:
 
     def cfunc_tkeo(self):
 
-
-        obs_dataV = self.ztr[1:-1]**2 - self.ztr[:-2]*self.ztr[2:] 
+        #obs_dataV = self.ztr[1:-1]**2 - self.ztr[:-2]*self.ztr[2:] 
+        obs_dataV = self.ztr**2 
         obs_dataH = self.xtr + self.ytr 
         obs_dataH = obs_dataH[1:-1]**2 - obs_dataH[:-2]*obs_dataH[2:]
         for i in range(self.nstation):
