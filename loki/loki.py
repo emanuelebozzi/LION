@@ -167,6 +167,12 @@ class Loki:
             print('stacktraces class')
 
             sobj = stacktraces.Stacktraces(tobj, wobj, **inputs)
+
+            sobj.save_network_characteristic_function(output_dir, component="P")
+            sobj.save_network_characteristic_function(output_dir, component="S")
+
+
+
             event = event_path.split('/')[-1]
    
 
@@ -214,6 +220,20 @@ class Loki:
                         nshort_s_sta = int(tshorts[i] // sobj.deltat)
                         
                     obs_dataP_sta, obs_dataS_sta = sobj.loc_stalta(nshort_p_sta, nshort_s_sta, slrat, norm=1)
+                    print('now saving the sta-lta')
+                    # Save STA/LTA only once (first trial is enough)
+                    if i == 0:
+                        sobj.save_network_stalta(
+                            obs_dataP_sta,
+                            output_dir,
+                            phase="P"
+                        )
+                        sobj.save_network_stalta(
+                            obs_dataS_sta,
+                            output_dir,
+                            phase="S"
+                        )
+
                 else:
                     obs_dataP_sta = sobj.obs_dataV_sta
                     obs_dataS_sta = sobj.obs_dataH_sta

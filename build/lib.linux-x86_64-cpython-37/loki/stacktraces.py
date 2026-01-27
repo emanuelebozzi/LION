@@ -1,6 +1,8 @@
 import numpy as num
 import DET_STALTA
 import LOC_STALTA
+import os
+import matplotlib.pyplot as plt
 
 class Stacktraces:
 
@@ -16,8 +18,12 @@ class Stacktraces:
             derivative = inputs['derivative']
             self.loki_input(wobj, tobj, derivative)
             self.characteristic_function(vfunc, hfunc, epsilon)
+            #self.enforce_effective_sensor_cap(alpha=1)
             self.enforce_hybrid_ps()
-            #self.adaptive_hz_balance()
+            self.enforce_effective_sensor_cap(alpha=1)          #add now, not present before
+            #self.adaptive_hz_balance(Rmax=1.1)                   #add, not present before
+            self.enforce_equal_ps_energy() #before
+
         else:
             normalize = inputs.get('normthrd', False)
             self.loki_input(wobj, tobj, derivative=False, direct_input=True, normalize=normalize)
@@ -25,6 +31,112 @@ class Stacktraces:
             if 'ppower' in inputs:
                 self.obs_dataV = self.obs_dataV ** inputs['ppower']
                 self.obs_dataH = self.obs_dataH ** inputs['ppower']
+
+
+
+    def save_network_characteristic_function(
+        self,
+        outdir,
+        component="P",
+        normalize_traces=False,
+        scale=1.0,
+        dpi=150
+    ):
+        """
+        Save a single PNG with CFs from all stations in the SAME output
+        directory used for the sparse matrix.
+
+        Parameters
+        ----------
+        outdir : str
+            Output directory (already exists or will be created)
+        component : str
+            "P" or "S"
+        """
+
+        os.makedirs(outdir, exist_ok=True)
+
+        if component.upper() == "P":
+            if not hasattr(self, "obs_dataV"):
+                return
+            data = self.obs_dataV
+            label = "P"
+        elif component.upper() == "S":
+            if not hasattr(self, "obs_dataH"):
+                return
+            data = self.obs_dataH
+            label = "S"
+        else:
+            raise ValueError("component must be 'P' or 'S'")
+
+        t = num.arange(self.ns) * self.deltat
+
+        fig, ax = plt.subplots(figsize=(12, 0.35 * self.nstation + 2))
+
+        for i in range(self.nstation):
+            tr = data[i]
+
+            if normalize_traces:
+                m = num.max(num.abs(tr))
+                if m > 0:
+                    tr = tr / m
+
+            ax.plot(t, tr * scale + i, lw=0.8, color="black")
+
+        ax.set_yticks(range(self.nstation))
+        ax.set_yticklabels(self.stations)
+        ax.set_xlabel("Time (s)")
+        ax.set_title(f"{self.evid} | Network {label} Characteristic Function")
+        ax.grid(True, axis="x", alpha=0.3)
+
+        fname = f"{self.evid}_NETWORK_{label}_CF.png"
+        fig.savefig(
+            os.path.join(outdir, fname),
+            dpi=dpi,
+            bbox_inches="tight"
+        )
+        plt.close(fig)
+
+    def save_network_stalta(
+        self,
+        obs_data,
+        outdir,
+        phase="P",
+        scale=1.0,
+        dpi=150
+    ):
+        """
+        Save a single PNG with STA/LTA from all stations
+        (one plot per event & per network).
+        """
+
+        os.makedirs(outdir, exist_ok=True)
+
+        t = num.arange(obs_data.shape[1]) * self.deltat
+
+        fig, ax = plt.subplots(figsize=(12, 0.35 * self.nstation + 2))
+
+        for i in range(self.nstation):
+            tr = obs_data[i]
+            #m = num.max(num.abs(tr))
+            #if m > 0:
+            #    tr = tr / m
+            ax.plot(t, tr * scale + i, lw=0.8, color="black")
+
+        ax.set_yticks(range(self.nstation))
+        ax.set_yticklabels(self.stations)
+        ax.set_xlabel("Time (s)")
+        ax.set_title(f"{self.evid} | Network {phase} STA/LTA")
+        ax.grid(True, axis="x", alpha=0.3)
+
+        fname = f"{self.evid}_NETWORK_{phase}_STALTA.png"
+        fig.savefig(
+            os.path.join(outdir, fname),
+            dpi=dpi,
+            bbox_inches="tight"
+        )
+        plt.close(fig)
+
 
     def adaptive_hz_balance(self, Rmax=1.25, eps=1e-12):
         """
@@ -202,7 +314,16 @@ class Stacktraces:
     # ---------- Characteristic function ----------
     def characteristic_function(self, vfunc='erg', hfunc='pca', epsilon=0.001):
         if len(self.comp) == 1:
-            self.cfunc_pca(epsilon)
+            if hfunc == 'tkeo':
+                print(f"[INFO] Single-component network, using TKEO CF")
+                self.cfunc_tkeo()
+            elif hfunc == 'erg':
+                print(f"[INFO] Single-component network, using ERG CF")
+                self.cfunc_erg(True)
+            else:
+                print(f"[INFO] Single-component network, using PCA CF as default")
+                self.cfunc_pca(epsilon)
+
         else:
             if vfunc == 'erg' and hfunc == 'pca':
                 self.cfunc_erg(True)
@@ -217,12 +338,22 @@ class Stacktraces:
                 self.cfunc_cosh(False)
             elif vfunc == 'tkeo' and hfunc == 'tkeo':
                 self.cfunc_tkeo(True)
+            elif vfunc == 'zhpc' and hfunc == 'zhpc':
+                 self.cfunc_zhpc(epsilon)
+            elif vfunc == 'polerg' and hfunc == 'polerg':
+                self.cfunc_polerg_hybrid(epsilon)
+            elif vfunc == 'erg' and hfunc == 'tkeo':
+                self.cfunc_erg_tkeo_hybrid(epsilon)
+            elif vfunc == 'tkeo' and hfunc == 'pca':
+                print('tkeo and pca')
+                self.cfunc_tkeo()  # vertical CF
+                self.cfunc_pca(epsilon)  # horizontal CF
             else:
                 print('wrong characteristic functions, energy used as default')
                 self.cfunc_erg(False)
 
     # ---------- cfunc implementations ----------
-    def cfunc_erg(self, ergz):
+    def cfunc_erg_old(self, ergz):
         if ergz:
             obs_dataV = self.ztr ** 2
             for i in range(self.nstation):
@@ -243,12 +374,196 @@ class Stacktraces:
             self.obs_dataH = obs_dataH * self.scaleH
             self.obs_dataV = obs_dataV * self.scaleZ
 
-    def cfunc_tkeo(self):
 
-        #obs_dataV = self.ztr[1:-1]**2 - self.ztr[:-2]*self.ztr[2:] 
-        obs_dataV = self.ztr**2 
-        obs_dataH = self.xtr + self.ytr 
-        obs_dataH = obs_dataH[1:-1]**2 - obs_dataH[:-2]*obs_dataH[2:]
+    def cfunc_erg(self, ergz=True, power=1, use_analytic_weight=True, eps=1e-12):
+        """
+        Boosted ERG characteristic function.
+        - Nonlinear peak boosting (power > 1)
+        - Optional analytic signal weighting for sharper peaks
+        """
+
+        if ergz:
+            # Vertical (Z) component only
+            obs_dataV = self.ztr ** 2
+
+            for i in range(self.nstation):
+                # Boost peaks
+                obs_dataV[i, :] = obs_dataV[i, :] ** power
+
+                # Optional analytic weighting
+                if use_analytic_weight:
+                    z_as = self.analytic_signal(self.ztr[i, :])
+                    obs_dataV[i, :] *= num.abs(z_as)
+
+                # Per-station normalization
+                m = num.max(obs_dataV[i, :])
+                if m > 0:
+                    obs_dataV[i, :] /= m + eps
+
+            self.obs_dataV = obs_dataV * self.scaleZ
+
+        else:
+            # Horizontal + vertical (3C) network
+            obs_dataV = self.ztr ** 2
+            obs_dataH = self.xtr ** 2 + self.ytr ** 2
+
+            for i in range(self.nstation):
+                # Boost vertical
+                obs_dataV[i, :] = obs_dataV[i, :] ** power
+                if use_analytic_weight:
+                    z_as = self.analytic_signal(self.ztr[i, :])
+                    obs_dataV[i, :] *= num.abs(z_as)
+
+                # Boost horizontal
+                obs_dataH[i, :] = obs_dataH[i, :] ** power
+                if use_analytic_weight:
+                    h_as = self.analytic_signal(num.sqrt(self.xtr[i, :]**2 + self.ytr[i, :]**2))
+                    obs_dataH[i, :] *= num.abs(h_as)
+
+                # Normalization
+                mv = num.max(obs_dataV[i, :])
+                mh = num.max(obs_dataH[i, :])
+                if mv > 0:
+                    obs_dataV[i, :] /= mv + eps
+                if mh > 0:
+                    obs_dataH[i, :] /= mh + eps
+
+            self.obs_dataV = obs_dataV * self.scaleZ
+            self.obs_dataH = obs_dataH * self.scaleH
+
+
+    def cfunc_polerg_hybrid(self, epsilon=1e-12, alpha=1.0):
+        """
+        Polarization–Energy Hybrid CF (corrected implementation)
+        - 3C stations: polarization-enhanced energy (depth-sensitive)
+        - 1C stations: pure energy (timing-sensitive)
+        - alpha: max 1C advantage relative to 3C stations
+        """
+
+        obs_dataV = num.zeros([self.nstation, self.ns])
+        obs_dataH = num.zeros([self.nstation, self.ns])
+
+        # Horizontal magnitude
+        htr = num.sqrt(self.xtr**2 + self.ytr**2)
+
+        # Analytic signals for polarization
+        z_as = self.analytic_signal(self.ztr)
+        h_as = self.analytic_signal(htr)
+
+        # Conjugates
+        z_asC = num.conjugate(z_as)
+        h_asC = num.conjugate(h_as)
+
+        for i in range(self.nstation):
+            # Skip stations with no valid data
+            if num.max(self.ztr[i,:]) == 0 and num.max(htr[i,:]) == 0:
+                continue
+
+            if i in self.three_comp_idx:
+                # --- 3C: polarization-enhanced energy ---
+                coh = num.abs(h_as[i] * z_asC[i]) / (num.abs(h_as[i])**2 + num.abs(z_as[i])**2 + epsilon)
+                coh = num.clip(coh, 0.1, 1.0)  # prevent very small values
+
+                obs_dataV[i, :] = coh * (self.ztr[i, :]**2)
+                obs_dataH[i, :] = coh * (htr[i, :]**2)
+            else:
+                # --- 1C: pure energy ---
+                if num.any(self.ztr[i,:] != 0):
+                    e = self.ztr[i,:]**2
+                else:
+                    e = htr[i,:]**2
+                obs_dataV[i, :] = e
+                obs_dataH[i, :] = e
+
+        # --- Per-station normalization (optional small epsilon to avoid div by zero) ---
+        for i in range(self.nstation):
+            mv = num.max(obs_dataV[i,:])
+            mh = num.max(obs_dataH[i,:])
+            if mv > 0:
+                obs_dataV[i,:] /= mv
+            if mh > 0:
+                obs_dataH[i,:] /= mh
+
+        # --- Apply 1C/3C relative scaling to prevent fiber dominance ---
+        if len(self.single_comp_idx) > 0 and len(self.three_comp_idx) > 0:
+            N_fiber = len(self.single_comp_idx)
+            N_3c = len(self.three_comp_idx)
+            N_fiber_eff = min(N_fiber, alpha * N_3c)
+            scale_fiber = (N_fiber_eff / N_fiber) ** 0.5
+
+            obs_dataV[self.single_comp_idx, :] *= scale_fiber
+            obs_dataH[self.single_comp_idx, :] *= scale_fiber
+            print(f"[INFO] 1C scaling applied in hybrid polerg: scale={scale_fiber:.3f}")
+
+        # --- Apply global H/Z scaling once ---
+        self.obs_dataV = obs_dataV * self.scaleZ
+        self.obs_dataH = obs_dataH * self.scaleH
+
+
+    def cfunc_erg_tkeo_hybrid(self, epsilon=1e-12):
+        """
+        Hybrid ERG-TKEO CF (robust version).
+        - 3C stations: ERG (Z for P, H for S)
+        - 1C stations: TKEO on available component
+        - Safe handling of empty traces.
+        """
+
+        obs_dataV = num.zeros([self.nstation, self.ns])
+        obs_dataH = num.zeros([self.nstation, self.ns])
+        htr = num.sqrt(self.xtr**2 + self.ytr**2)
+
+        for i in range(self.nstation):
+            # --- 3C station: ERG ---
+            if i in self.three_comp_idx:
+                v = self.ztr[i, :]**2
+                h = htr[i, :]**2
+
+                mv = num.max(v)
+                mh = num.max(h)
+                if mv > 0:
+                    v /= mv
+                if mh > 0:
+                    h /= mh
+
+                obs_dataV[i, :] = v
+                obs_dataH[i, :] = h
+
+            # --- 1C station: TKEO ---
+            else:
+                # Pick available trace
+                if num.any(self.ztr[i, :] != 0):
+                    u = self.ztr[i, :]
+                else:
+                    u = htr[i, :]
+
+                tkeo = num.zeros_like(u)
+                if len(u) > 2:
+                    tkeo[1:-1] = u[1:-1]**2 - u[:-2]*u[2:]
+                tkeo = num.abs(tkeo)
+                mt = num.max(tkeo)
+                if mt > 0:
+                    tkeo /= mt
+
+                obs_dataV[i, :] = tkeo
+                obs_dataH[i, :] = tkeo
+
+        # Apply H/Z scaling
+        self.obs_dataV = obs_dataV * self.scaleZ
+        self.obs_dataH = obs_dataH * self.scaleH
+
+
+
+
+    def cfunc_tkeo(self):
+        obs_dataV = self.ztr**2 if self.ztr.shape[1] > 1 else self.xtr**2  # use available component
+        # Horizontal: if only one component, just copy vertical (1C network)
+        if self.xtr.shape[1] > 1 or self.ytr.shape[1] > 1:
+            htr = self.xtr + self.ytr
+            obs_dataH = num.zeros_like(htr)
+            obs_dataH[:, 1:-1] = htr[:, 1:-1]**2 - htr[:, :-2]*htr[:, 2:]
+        else:
+            obs_dataH = obs_dataV.copy()  # 1C network fallback
+
         for i in range(self.nstation):
             mh = num.max(abs(obs_dataH[i, :]))
             mv = num.max(abs(obs_dataV[i, :]))
@@ -259,6 +574,7 @@ class Stacktraces:
 
         self.obs_dataH = obs_dataH * self.scaleH
         self.obs_dataV = obs_dataV * self.scaleZ
+
 
 
     def enforce_hybrid_ps(self):
@@ -289,21 +605,131 @@ class Stacktraces:
             elif hasH and not hasV:
                 self.obs_dataV[i, :] = self.obs_dataH[i, :].copy()
             # ---- station-count normalization ----
-        nz = 0
-        nh = 0
+        #nz = 0
+        #nh = 0
+
+        #for i in range(self.nstation):
+        #    if num.any(self.obs_dataV[i, :] != 0):
+        #        nz += 1
+        #    if num.any(self.obs_dataH[i, :] != 0):
+        #        nh += 1
+
+        #if nz > 0 and nh > 0:
+        #    self.obs_dataV *= (1.0 / nz)
+        #    self.obs_dataH *= (1.0 / nh)
+    
+    def enforce_equal_ps_energy(self, eps=1e-12):
+        """
+        Enforce strict 50–50 P/S contribution based on total CF energy.
+        Independent of characteristic function choice.
+        """
+
+        if not hasattr(self, "obs_dataV") or not hasattr(self, "obs_dataH"):
+            return
+
+        EP = num.sum(self.obs_dataV ** 2)
+        ES = num.sum(self.obs_dataH ** 2)
+
+        if EP < eps or ES < eps:
+            return
+
+        scaleP = num.sqrt(ES / EP)
+        scaleS = num.sqrt(EP / ES)
+
+        self.obs_dataV *= scaleP
+        self.obs_dataH *= scaleS
+
+
+    def cfunc_zhpc(self, epsilon=1e-12):
+        """
+        Z–H Polarization Coherence characteristic function.
+        Strongly enhances depth sensitivity.
+        """
+
+        obs_dataV = num.zeros([self.nstation, self.ns])
+        obs_dataH = num.zeros([self.nstation, self.ns])
+
+        # Horizontal magnitude
+        htr = num.sqrt(self.xtr**2 + self.ytr**2)
+
+        # Analytic signals
+        z_as = self.analytic_signal(self.ztr)
+        h_as = self.analytic_signal(htr)
+
+        z_asC = num.conjugate(z_as)
+        h_asC = num.conjugate(h_as)
 
         for i in range(self.nstation):
-            if num.any(self.obs_dataV[i, :] != 0):
-                nz += 1
-            if num.any(self.obs_dataH[i, :] != 0):
-                nh += 1
+            # Instantaneous Z–H coherence
+            coh = num.abs(h_as[i] * z_asC[i]) / (
+                (num.abs(h_as[i])**2 + num.abs(z_as[i])**2) + epsilon
+            )
 
-        if nz > 0 and nh > 0:
-            self.obs_dataV *= (1.0 / nz)
-            self.obs_dataH *= (1.0 / nh)
+            obs_dataV[i, :] = coh * (self.ztr[i, :] ** 2)
+            obs_dataH[i, :] = coh * (htr[i, :] ** 2)
+
+            # Per-station normalization
+            mv = num.max(obs_dataV[i, :])
+            mh = num.max(obs_dataH[i, :])
+
+            if mv > 0:
+                obs_dataV[i, :] /= mv
+            if mh > 0:
+                obs_dataH[i, :] /= mh
+
+        # Apply existing scaling logic ONCE
+        self.obs_dataV = obs_dataV * self.scaleZ
+        self.obs_dataH = obs_dataH * self.scaleH
 
 
-    def cfunc_pca(self, epsilon=0.001):
+    def enforce_effective_sensor_cap(self, alpha=0.1):
+        """
+        Limit the contribution of dense 1C fiber sensors relative to sparse 3C stations.
+
+        Parameters
+        ----------
+        alpha : float
+            Maximum allowed advantage of fiber over 3C stations.
+            Typical: 3.0
+        """
+
+        print(f"[INFO] Effective sensor cap: alpha={alpha}")
+
+        # Identify 1C (single-comp) and 3C (three-comp) indices
+        self.idx_fiber = self.single_comp_idx
+        self.idx_3c = self.three_comp_idx
+
+        N_fiber = len(self.idx_fiber)
+        N_3c = len(self.idx_3c)
+
+        if N_fiber == 0 or N_3c == 0:
+            # Nothing to scale
+            return
+
+        # Compute effective fiber count
+        #N_fiber_eff = min(N_fiber, alpha * N_3c)
+
+        # Scaling factor (sqrt because energy stacks as ~sqrt(N))
+        #self.scale_fiber = (N_fiber_eff / N_fiber) #** 0.5
+
+        dof_fiber_per_sensor = 1.0
+        dof_3c_per_station = 2.0   # or 3.0 if justified
+
+        DOF_fiber = N_fiber * dof_fiber_per_sensor
+        DOF_3c = N_3c * dof_3c_per_station
+
+        DOF_fiber_eff = min(DOF_fiber, alpha * DOF_3c)
+
+        self.scale_fiber = DOF_fiber_eff / DOF_fiber
+
+
+        # Apply scaling to obs_dataV and obs_dataH for 1C sensors
+        self.obs_dataV[self.idx_fiber, :] *= self.scale_fiber
+        self.obs_dataH[self.idx_fiber, :] *= self.scale_fiber
+
+        print(f"[INFO] Effective sensor cap applied: {N_fiber} 1C -> {DOF_fiber_eff} effective, scale={self.scale_fiber:.3f}")
+
+    def cfunc_pca_old(self, epsilon=0.001):
         obs_dataH = num.zeros([self.nstation, self.ns])
 
         # Analytic signals
@@ -326,6 +752,55 @@ class Stacktraces:
 
         # Apply H/Z scaling once at the end
         self.obs_dataH = obs_dataH * self.scaleH
+
+
+    def cfunc_pca(self, epsilon=0.001, power=1, use_analytic_weight=True):
+        """
+        Strong PCA characteristic function for horizontal component (H).
+
+        Parameters
+        ----------
+        epsilon : float
+            Small number to avoid division by zero during normalization.
+        power : float
+            Exponent to boost the dominant singular value.
+        use_analytic_weight : bool
+            If True, multiply singular value by instantaneous analytic magnitude.
+        """
+        obs_dataH = num.zeros([self.nstation, self.ns])
+
+        # Analytic signals
+        x_as = self.analytic_signal(self.xtr)
+        y_as = self.analytic_signal(self.ytr)
+        x_asC = num.conjugate(x_as)
+        y_asC = num.conjugate(y_as)
+
+        for i in range(self.nstation):
+            for j in range(self.ns):
+                # Construct 2x2 covariance matrix
+                cov = num.array([[x_as[i,j]*x_asC[i,j], x_as[i,j]*y_asC[i,j]],
+                                [y_as[i,j]*x_asC[i,j], y_as[i,j]*y_asC[i,j]]])
+                # SVD
+                _, s, _ = num.linalg.svd(cov)
+
+                # Boost dominant singular value
+                val = (s[0]**2) ** power
+
+                # Optionally weight by analytic magnitude
+                if use_analytic_weight:
+                    val *= (num.abs(x_as[i,j]) + num.abs(y_as[i,j]))
+
+                obs_dataH[i,j] = val
+
+            # Per-station normalization
+            max_val = num.max(obs_dataH[i, :])
+            if max_val > 0:
+                obs_dataH[i, :] = (obs_dataH[i, :] / max_val) + epsilon
+
+        # Apply H/Z scaling once
+        self.obs_dataH = obs_dataH * self.scaleH
+
+        print(f"[INFO] Strong PCA CF applied: power={power}, analytic_weight={use_analytic_weight}")
 
 
     def cfunc_cosh(self, coshz):
@@ -389,23 +864,65 @@ class Stacktraces:
         self.obs_dataH = obs_dataH * self.scaleH
         self.obs_dataV = obs_dataV * self.scaleZ
 
-
-    # ---------- loc_stalta ----------
     def loc_stalta(self, nshort_p, nshort_s, slrat, norm=1):
+
         tshort_p = nshort_p * self.deltat
         tshort_s = nshort_s * self.deltat
-        tlong_p = tshort_p * slrat
-        tlong_s = tshort_s * slrat
+        tlong_p  = tshort_p * slrat
+        tlong_s  = tshort_s * slrat
+
         ks_p = self.deltat / tshort_p
         kl_p = self.deltat / tlong_p
         ks_s = self.deltat / tshort_s
         kl_s = self.deltat / tlong_s
+
+        # --- Compute STA/LTA ---
         if len(self.comp) == 1:
-            obs_dataP = LOC_STALTA.recursive_stalta(tshort_p, tlong_p, self.deltat, self.obs_dataH, kl_p, ks_p, norm)
-            obs_dataS = LOC_STALTA.recursive_stalta(tshort_s, tlong_s, self.deltat, self.obs_dataH, kl_s, ks_s, norm)
+            obs_dataP = LOC_STALTA.recursive_stalta(
+                tshort_p, tlong_p, self.deltat,
+                self.obs_dataH, kl_p, ks_p, norm
+            )
+            obs_dataS = LOC_STALTA.recursive_stalta(
+                tshort_s, tlong_s, self.deltat,
+                self.obs_dataH, kl_s, ks_s, norm
+            )
         else:
-            obs_dataP = LOC_STALTA.recursive_stalta(tshort_p, tlong_p, self.deltat, self.obs_dataV, kl_p, ks_p, norm)
-            obs_dataS = LOC_STALTA.recursive_stalta(tshort_s, tlong_s, self.deltat, self.obs_dataH, kl_s, ks_s, norm)
+            obs_dataP = LOC_STALTA.recursive_stalta(
+                tshort_p, tlong_p, self.deltat,
+                self.obs_dataV, kl_p, ks_p, norm
+            )
+            obs_dataS = LOC_STALTA.recursive_stalta(
+                tshort_s, tlong_s, self.deltat,
+                self.obs_dataH, kl_s, ks_s, norm
+            )
+
+        # ==========================================================
+        # 🔒 TKEO-safe stabilization (CRITICAL PART)
+        # ==========================================================
+
+        # Number of samples required for a stable LTA
+        nlta_p = int(400)
+        nlta_s = int(400)
+
+        # 1) Kill STA/LTA before LTA is mature (ObsPy behavior)
+        obs_dataP[:, :nlta_p] = 0.0
+        obs_dataS[:, :nlta_s] = 0.0
+
+        # 2) Optional: suppress numerical garbage
+        obs_dataP = num.nan_to_num(obs_dataP, nan=0.0, posinf=0.0, neginf=0.0)
+        obs_dataS = num.nan_to_num(obs_dataS, nan=0.0, posinf=0.0, neginf=0.0)
+
+                # Apply scaling to obs_dataV and obs_dataH for 1C sensors
+
+        N_fiber = len(self.idx_fiber)
+        N_3c = len(self.idx_3c)
+
+        if N_fiber != 0 and N_3c != 0:
+            # Nothing to scale
+            obs_dataP[self.idx_fiber, :] *= self.scale_fiber
+            obs_dataS[self.idx_fiber, :] *= self.scale_fiber
+        
+
         return obs_dataP * self.scaleZ, obs_dataS * self.scaleH
 
     # ---------- det_stalta ----------

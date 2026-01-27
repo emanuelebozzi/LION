@@ -9,7 +9,7 @@ from loki.loki import Loki
 
 db_path = '/home/emanuele/data/emanuele/loki-das/Traveltimes/cefalonia'
 data_path = '/home/emanuele/data/emanuele/loki-das/cefalonia/orion_das_high_freq_complete_weak_less_subsection_also_non_selected_2_gilbert'
-output_path = '/home/emanuele/data/emanuele/loki-das/cefalonia/output_new_hybrid_2'
+output_path = '/home/emanuele/data/emanuele/loki-das/cefalonia/output_new_hybrid_4'
 hdr_filename = 'header_long_cefalonia.hdr'
 geometry_filename_fiber = 'channels.dat'
 geometry_filename_stat = 'stations_cefalonia_total.dat'
@@ -23,7 +23,7 @@ inputs['tshortp_max_fiber'] = 0.2 #0.3
 inputs['tshorts_min_fiber'] = 0.1 #0.15
 inputs['tshorts_max_fiber'] = 0.2 #0.35
 inputs['slrat'] = 2
-inputs['npr'] = 10
+inputs['npr'] = 30
 inputs['ntrial'] = 4
 inputs['derivative'] = True
 inputs['normalize'] = True
