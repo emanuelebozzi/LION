@@ -3,6 +3,8 @@ import DET_STALTA
 import LOC_STALTA
 import os
 import matplotlib.pyplot as plt
+from scipy.ndimage import uniform_filter1d
+
 
 class Stacktraces:
 
@@ -877,20 +879,32 @@ class Stacktraces:
         kl_s = self.deltat / tlong_s
 
         # --- Compute STA/LTA ---
+
+        # --- Light smoothing of P characteristic function (CRITICAL) ---
+        obs_dataV_smooth = uniform_filter1d(
+            self.obs_dataV,
+            size=3,
+            axis=1,
+            mode="nearest"
+        )
+
+        # --- Compute STA/LTA ---
         if len(self.comp) == 1:
             obs_dataP = LOC_STALTA.recursive_stalta(
                 tshort_p, tlong_p, self.deltat,
                 self.obs_dataH, kl_p, ks_p, norm
             )
+
             obs_dataS = LOC_STALTA.recursive_stalta(
-                tshort_s, tlong_s, self.deltat,
-                self.obs_dataH, kl_s, ks_s, norm
-            )
+            tshort_s, tlong_s, self.deltat,
+            self.obs_dataH, kl_s, ks_s, norm
+        )
         else:
             obs_dataP = LOC_STALTA.recursive_stalta(
                 tshort_p, tlong_p, self.deltat,
-                self.obs_dataV, kl_p, ks_p, norm
+                obs_dataV_smooth, kl_p, ks_p, norm
             )
+
             obs_dataS = LOC_STALTA.recursive_stalta(
                 tshort_s, tlong_s, self.deltat,
                 self.obs_dataH, kl_s, ks_s, norm
@@ -901,16 +915,27 @@ class Stacktraces:
         # ==========================================================
 
         # Number of samples required for a stable LTA
-        nlta_p = int(400)
-        nlta_s = int(400)
+        nlta_p = int(50)
+        nlta_s = int(50)
 
         # 1) Kill STA/LTA before LTA is mature (ObsPy behavior)
+        # Kill unstable STA/LTA at START
         obs_dataP[:, :nlta_p] = 0.0
         obs_dataS[:, :nlta_s] = 0.0
+
+        # Kill unstable STA/LTA at END (CRITICAL)
+        obs_dataP[:, -nlta_p:] = 0.0
+        obs_dataS[:, -nlta_s:] = 0.0
+
 
         # 2) Optional: suppress numerical garbage
         obs_dataP = num.nan_to_num(obs_dataP, nan=0.0, posinf=0.0, neginf=0.0)
         obs_dataS = num.nan_to_num(obs_dataS, nan=0.0, posinf=0.0, neginf=0.0)
+
+        # Prevent pathological ratio spikes
+        obs_dataP[obs_dataP < 0] = 0.0
+        obs_dataS[obs_dataS < 0] = 0.0
+
 
                 # Apply scaling to obs_dataV and obs_dataH for 1C sensors
 

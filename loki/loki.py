@@ -222,21 +222,14 @@ class Loki:
                     obs_dataP_sta, obs_dataS_sta = sobj.loc_stalta(nshort_p_sta, nshort_s_sta, slrat, norm=1)
                     print('now saving the sta-lta')
                     # Save STA/LTA only once (first trial is enough)
-                    if i == 0:
-                        sobj.save_network_stalta(
-                            obs_dataP_sta,
-                            output_dir,
-                            phase="P"
-                        )
-                        sobj.save_network_stalta(
-                            obs_dataS_sta,
-                            output_dir,
-                            phase="S"
-                        )
+ 
 
+                
                 else:
-                    obs_dataP_sta = sobj.obs_dataV_sta
-                    obs_dataS_sta = sobj.obs_dataH_sta
+                    # NO STA/LTA → use characteristic functions directly
+                    obs_dataP_sta = sobj.obs_dataV
+                    obs_dataS_sta = sobj.obs_dataH
+
 
                 x_stations, y_stations, z_stations = [], [], []
                 for sta in sobj.stations:
@@ -400,6 +393,37 @@ class Loki:
                     best_label = label
 
             # --------------- After loop: save only best sparse trial ---------------
+
+            # ----------------- Save characteristic functions and STA/LTA for best trial -----------------
+# ----------------- Save characteristic functions and STA/LTA for best trial -----------------
+            if best_trial_index is not None:
+                print(f"Saving characteristic functions and characteristic functions for best trial {best_trial_index}")
+
+                # Save characteristic functions always
+                sobj.save_network_characteristic_function(output_dir, component="P")
+                sobj.save_network_characteristic_function(output_dir, component="S")
+
+                # Only save STA/LTA if STALTA is True AND best_trial_index is valid
+                if STALTA:
+                    # Ensure trial index is within bounds
+                    max_trial = len(tshortp) if best_label != 'fiber' else len(tshortp_fiber)
+                    if best_trial_index >= max_trial:
+                        print(f"[WARNING] best_trial_index {best_trial_index} exceeds available STA/LTA trials ({max_trial}), skipping STA/LTA save.")
+                    else:
+                        if best_label == 'fiber':
+                            nshort_p_sta = int(tshortp_fiber[best_trial_index] // sobj.deltat)
+                            nshort_s_sta = int(tshorts_fiber[best_trial_index] // sobj.deltat)
+                        else:
+                            nshort_p_sta = int(tshortp[best_trial_index] // sobj.deltat)
+                            nshort_s_sta = int(tshorts[best_trial_index] // sobj.deltat)
+
+                        # Recompute STA/LTA for best trial
+                        obs_dataP_sta, obs_dataS_sta = sobj.loc_stalta(nshort_p_sta, nshort_s_sta, slrat, norm=1)
+
+                        # Save STA/LTA
+                        sobj.save_network_stalta(obs_dataP_sta, output_dir, phase="P")
+                        sobj.save_network_stalta(obs_dataS_sta, output_dir, phase="S")
+
             if best_nnz is not None and best_nnz > 0:
                 sparse_filename = f"{output_dir}/corrmatrix_sparse_best_{best_trial_index}_{best_label}.npz"
                 np.savez(
