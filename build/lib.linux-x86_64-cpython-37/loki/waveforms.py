@@ -21,7 +21,7 @@ class Waveforms:
                 if sta not in data_stalist:
                     data_stalist.append(sta)
         self.data_stations = set(data_stalist)
-        # print('data_stations', self.data_stations)
+        print('data_stations', self.data_stations)
 
     def load_waveforms(self, event_path, extension_sta, comps, freq):
         files = os.path.join(event_path, extension_sta)

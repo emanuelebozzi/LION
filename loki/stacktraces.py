@@ -178,15 +178,23 @@ class Stacktraces:
             print(f"[INFO] Adaptive H/Z balance not needed: R={R:.2f}")
 
 
-
     def check_sampling_rate(self, wobj):
         deltas = [wobj.stream[comp][sta][1] for comp in wobj.stream for sta in wobj.stream[comp]]
         deltas = num.array(deltas)
         ideltas = num.unique((deltas * 1E6).astype(int))
+
         if num.size(ideltas) == 1:
             self.deltat = deltas[0]
         else:
+            print("\n[ERROR] Sampling rate mismatch detected!")
+            print("List of all traces with their sampling intervals (delta in seconds):")
+            for comp in wobj.stream:
+                for sta in wobj.stream[comp]:
+                    delta = wobj.stream[comp][sta][1]
+                    print(f"Component: {comp}, Station: {sta}, delta: {delta}")
+            print(f"Unique deltas found (in μs): {ideltas}")
             raise ValueError("Error!! All traces must have the same sampling rate")
+
 
     def check_starting_time(self, wobj):
         dtimes = []
@@ -322,6 +330,9 @@ class Stacktraces:
             elif hfunc == 'erg':
                 print(f"[INFO] Single-component network, using ERG CF")
                 self.cfunc_erg(True)
+            elif hfunc == 'env':
+                print(f"[INFO] Single-component network, using ENV CF")
+                self.cfunc_env()
             else:
                 print(f"[INFO] Single-component network, using PCA CF as default")
                 self.cfunc_pca(epsilon)
@@ -346,6 +357,8 @@ class Stacktraces:
                 self.cfunc_polerg_hybrid(epsilon)
             elif vfunc == 'erg' and hfunc == 'tkeo':
                 self.cfunc_erg_tkeo_hybrid(epsilon)
+            elif vfunc == 'env' and hfunc == 'env':
+                self.cfunc_env()
             elif vfunc == 'tkeo' and hfunc == 'pca':
                 print('tkeo and pca')
                 self.cfunc_tkeo()  # vertical CF
@@ -355,6 +368,38 @@ class Stacktraces:
                 self.cfunc_erg(False)
 
     # ---------- cfunc implementations ----------
+
+    def cfunc_env(self):
+
+        import numpy as num
+        from scipy.signal import hilbert
+        from scipy.ndimage import gaussian_filter1d
+
+        
+        # Raw amplitudes
+        obs_dataV = num.abs(self.ztr)
+        obs_dataH = num.sqrt(self.xtr**2 + self.ytr**2)
+
+        # Compute envelopes along time axis (axis=1)
+        obs_dataV = num.abs(hilbert(obs_dataV, axis=1))
+        obs_dataH = num.abs(hilbert(obs_dataH, axis=1))
+
+        # Normalize per station
+        for i in range(self.nstation):
+            mh = num.max(obs_dataH[i, :])
+            mv = num.max(obs_dataV[i, :])
+
+            if mh > 0:
+                obs_dataH[i, :] /= mh
+            if mv > 0:
+                obs_dataV[i, :] /= mv
+
+        # Apply scaling
+        self.obs_dataH = obs_dataH * self.scaleH
+        self.obs_dataV = obs_dataV * self.scaleZ
+
+        
+
     def cfunc_erg_old(self, ergz):
         if ergz:
             obs_dataV = self.ztr ** 2
